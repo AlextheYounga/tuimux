@@ -1,6 +1,10 @@
 [package]
 name = "tuimux"
 version = "0.1.0"
+authors=["Alex Younger <thealexyounger@proton.me>"]
+description="A fast Rust TUI for everything tmux, with full CRUD support".
+license="MIT"
+repository="https://github.com/AlextheYounga/tuimux.git"
 edition = "2024"
 
 [dependencies]
