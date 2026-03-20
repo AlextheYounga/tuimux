@@ -166,11 +166,14 @@ impl App {
                     self.request_preview_refresh();
                 }
             }
-            Action::Attach
-            | Action::CreateSession
-            | Action::CreateWindow
-            | Action::Rename
-            | Action::Close => self.start_action(action),
+            Action::Attach => {
+                if self.perform_attach() {
+                    return true;
+                }
+            }
+            Action::CreateSession | Action::CreateWindow | Action::Rename | Action::Close => {
+                self.start_action(action);
+            }
         }
 
         false
@@ -267,7 +270,6 @@ impl App {
 
     fn start_action(&mut self, action: Action) {
         match action {
-            Action::Attach => self.perform_attach(),
             Action::CreateSession => {
                 self.state.modal = Some(Modal::Input {
                     title: String::from("Create session"),
@@ -295,10 +297,10 @@ impl App {
         }
     }
 
-    fn perform_attach(&mut self) {
+    fn perform_attach(&mut self) -> bool {
         let Some(session_name) = self.state.selected_session_name() else {
             self.set_error_status("No session selected");
-            return;
+            return false;
         };
 
         let result = if let Some(window_index) = self.state.selected_window_index() {
@@ -308,8 +310,11 @@ impl App {
         };
 
         match result {
-            Ok(()) => self.set_status("Attach successful"),
-            Err(error) => self.set_error_status(&format!("Attach failed: {error}")),
+            Ok(()) => true,
+            Err(error) => {
+                self.set_error_status(&format!("Attach failed: {error}"));
+                false
+            }
         }
     }
 

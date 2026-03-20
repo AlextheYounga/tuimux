@@ -7,6 +7,8 @@ It gives you a fast dashboard to:
 - inspect session metadata and live pane output preview
 - create, attach, rename, and close sessions/windows from keybindings
 
+![Preview Image](docs/images/preview.png)
+
 ## Features
 
 - 3-panel layout:
