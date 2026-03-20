@@ -10,3 +10,55 @@ ratatui = "0.29"
 serde = { version = "1", features = ["derive"] }
 shell-escape = "0.1"
 tempfile = "3"
+
+[lints.clippy]
+# broad groups (lower priority so individual lint overrides take effect)
+correctness = { level = "deny", priority = -1 }
+suspicious = { level = "deny", priority = -1 }
+complexity = { level = "warn", priority = -1 }
+style = { level = "warn", priority = -1 }
+perf = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+
+# readability / naming
+similar_names = "warn"
+many_single_char_names = "warn"
+module_name_repetitions = "warn"
+enum_variant_names = "warn"
+struct_field_names = "warn"
+disallowed_names = "deny"
+wildcard_imports = "warn"
+module_inception = "warn"
+
+# complexity / API readability
+cognitive_complexity = "warn"
+too_many_arguments = "deny"
+fn_params_excessive_bools = "warn"
+large_types_passed_by_value = "warn"
+trivially_copy_pass_by_ref = "warn"
+
+# panic / debug leftovers
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+# This is a CLI binary: stdout/stderr output is the intended UX.
+print_stdout = "allow"
+print_stderr = "allow"
+
+# docs / contracts
+missing_panics_doc = "deny"
+missing_errors_doc = "deny"
+missing_safety_doc = "deny"
+undocumented_unsafe_blocks = "deny"
+
+# anti-mess / consistency
+absolute_paths = "warn"
+allow_attributes = "deny"
+redundant_clone = "warn"
+implicit_clone = "warn"
+semicolon_if_nothing_returned = "warn"
+match_same_arms = "warn"
+needless_pass_by_value = "warn"
