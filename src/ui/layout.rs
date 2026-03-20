@@ -18,7 +18,7 @@ pub fn split(area: Rect) -> Regions {
 
     let vertical = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(4), Constraint::Length(4)])
+        .constraints([Constraint::Min(4), Constraint::Length(7)])
         .split(canvas);
 
     let top = vertical[0];

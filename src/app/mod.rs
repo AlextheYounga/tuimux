@@ -10,6 +10,8 @@ use crossterm::terminal::{
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use std::io::{self, Stdout};
+use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
+use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::app::actions::Action;
@@ -31,6 +33,31 @@ struct RefreshOutcome {
 #[derive(Debug, Default)]
 pub struct App {
     pub state: State,
+    preview_runtime: Option<PreviewRuntime>,
+}
+
+#[derive(Debug)]
+struct PreviewRuntime {
+    request_tx: Sender<PreviewRequest>,
+    result_rx: Receiver<PreviewResult>,
+    request_seq: u64,
+    latest_applied_seq: u64,
+}
+
+#[derive(Debug)]
+enum PreviewRequest {
+    Fetch {
+        seq: u64,
+        session_name: String,
+        window_index: Option<String>,
+    },
+}
+
+#[derive(Debug)]
+struct PreviewResult {
+    seq: u64,
+    output: String,
+    is_error: bool,
 }
 
 impl App {
@@ -44,11 +71,13 @@ impl App {
     /// # Errors
     /// Returns an error when the terminal runtime or event loop fails.
     pub fn run(&mut self) -> Result<()> {
+        self.init_preview_runtime();
         self.refresh_sessions();
 
         let mut terminal = Self::init_terminal()?;
         let run_result = self.run_loop(&mut terminal);
         let restore_result = Self::restore_terminal(&mut terminal);
+        self.preview_runtime = None;
 
         restore_result?;
         run_result
@@ -62,6 +91,7 @@ impl App {
         let mut last_preview = Instant::now();
 
         loop {
+            self.apply_preview_results();
             terminal.draw(|frame| ui::render(frame, &self.state))?;
 
             if event::poll(input_poll)?
@@ -84,7 +114,7 @@ impl App {
             }
 
             if last_preview.elapsed() >= preview_interval {
-                self.refresh_preview();
+                self.request_preview_refresh();
                 last_preview = Instant::now();
             }
         }
@@ -103,42 +133,38 @@ impl App {
             Action::MoveUp => {
                 if matches!(self.state.focus, state::FocusRegion::Tree) {
                     self.state.move_up();
+                    self.request_preview_refresh();
                 }
             }
             Action::MoveDown => {
                 if matches!(self.state.focus, state::FocusRegion::Tree) {
                     self.state.move_down();
+                    self.request_preview_refresh();
                 }
             }
             Action::Select => {
                 if matches!(self.state.focus, state::FocusRegion::Tree) {
                     self.state.select();
+                    self.request_preview_refresh();
                 }
             }
             Action::Expand => {
                 if matches!(self.state.focus, state::FocusRegion::Tree) {
                     self.state.expand_selected_session();
+                    self.request_preview_refresh();
                 }
             }
             Action::Collapse => {
                 if matches!(self.state.focus, state::FocusRegion::Tree) {
                     self.state.collapse_selected_session();
+                    self.request_preview_refresh();
                 }
             }
             Action::ToggleExpand => {
                 if matches!(self.state.focus, state::FocusRegion::Tree) {
                     self.state.toggle_expand();
+                    self.request_preview_refresh();
                 }
-            }
-            Action::CycleFocus => {
-                self.state.cycle_focus();
-                if matches!(self.state.focus, state::FocusRegion::Details) {
-                    self.refresh_preview();
-                }
-                self.state.status = Some(state::StatusLine {
-                    message: format!("Focus: {}", self.state.focus_label()),
-                    is_error: false,
-                });
             }
             Action::Attach
             | Action::CreateSession
@@ -461,7 +487,6 @@ impl App {
             KeyCode::Left | KeyCode::Char('h') => Some(Action::Collapse),
             KeyCode::Right | KeyCode::Char('l') => Some(Action::Expand),
             KeyCode::Enter => Some(Action::Select),
-            KeyCode::Tab => Some(Action::CycleFocus),
             KeyCode::Char(' ') => Some(Action::ToggleExpand),
             KeyCode::Char('R' | 'r') => Some(Action::Refresh),
             KeyCode::Char('a') => Some(Action::Attach),
@@ -478,7 +503,7 @@ impl App {
             Ok(outcome) => {
                 let count = outcome.sessions.len();
                 self.state.set_sessions(outcome.sessions);
-                self.refresh_preview();
+                self.request_preview_refresh();
 
                 if !outcome.skipped_sessions.is_empty() {
                     self.state.status = Some(state::StatusLine {
@@ -509,25 +534,92 @@ impl App {
         }
     }
 
-    fn refresh_preview(&mut self) {
+    fn init_preview_runtime(&mut self) {
+        let (request_tx, request_rx) = mpsc::channel::<PreviewRequest>();
+        let (result_tx, result_rx) = mpsc::channel::<PreviewResult>();
+
+        thread::spawn(move || {
+            while let Ok(request) = request_rx.recv() {
+                let mut latest = request;
+                loop {
+                    match request_rx.try_recv() {
+                        Ok(next) => latest = next,
+                        Err(TryRecvError::Empty) => break,
+                        Err(TryRecvError::Disconnected) => return,
+                    }
+                }
+
+                let PreviewRequest::Fetch {
+                    seq,
+                    session_name,
+                    window_index,
+                } = latest;
+
+                let result = match capture_preview(&session_name, window_index.as_deref()) {
+                    Ok(output) => PreviewResult {
+                        seq,
+                        output: if output.trim().is_empty() {
+                            String::from("(empty output)")
+                        } else {
+                            output
+                        },
+                        is_error: false,
+                    },
+                    Err(error) => PreviewResult {
+                        seq,
+                        output: format!("Preview unavailable: {error}"),
+                        is_error: true,
+                    },
+                };
+
+                if result_tx.send(result).is_err() {
+                    return;
+                }
+            }
+        });
+
+        self.preview_runtime = Some(PreviewRuntime {
+            request_tx,
+            result_rx,
+            request_seq: 0,
+            latest_applied_seq: 0,
+        });
+    }
+
+    fn request_preview_refresh(&mut self) {
+        let Some(runtime) = self.preview_runtime.as_mut() else {
+            return;
+        };
+
         let Some(session_name) = self.state.selected_session_name() else {
             self.state.preview = String::from("No selection");
             self.state.preview_is_error = false;
             return;
         };
 
-        match capture_preview(session_name, self.state.selected_window_index()) {
-            Ok(output) => {
-                self.state.preview = if output.trim().is_empty() {
-                    String::from("(empty output)")
-                } else {
-                    output
-                };
-                self.state.preview_is_error = false;
-            }
-            Err(error) => {
-                self.state.preview = format!("Preview unavailable: {error}");
-                self.state.preview_is_error = true;
+        runtime.request_seq = runtime.request_seq.saturating_add(1);
+        let request = PreviewRequest::Fetch {
+            seq: runtime.request_seq,
+            session_name: session_name.to_string(),
+            window_index: self.state.selected_window_index().map(str::to_string),
+        };
+
+        if runtime.request_tx.send(request).is_err() {
+            self.state.preview = String::from("Preview unavailable: worker disconnected");
+            self.state.preview_is_error = true;
+        }
+    }
+
+    fn apply_preview_results(&mut self) {
+        let Some(runtime) = self.preview_runtime.as_mut() else {
+            return;
+        };
+
+        while let Ok(result) = runtime.result_rx.try_recv() {
+            if result.seq >= runtime.latest_applied_seq {
+                runtime.latest_applied_seq = result.seq;
+                self.state.preview = result.output;
+                self.state.preview_is_error = result.is_error;
             }
         }
     }
