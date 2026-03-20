@@ -15,8 +15,9 @@ use std::time::{Duration, Instant};
 use crate::app::actions::Action;
 use crate::app::state::{ConfirmAction, InputAction, Modal, State};
 use crate::tmux::interface::{
-    attach_to_session, attach_to_window, close_session, close_window, create_session,
-    create_window, get_session, list_active_sessions, rename_session, rename_window,
+    attach_to_session, attach_to_window, capture_preview, close_session, close_window,
+    create_session, create_window, get_session, list_active_sessions, rename_session,
+    rename_window,
 };
 use crate::tmux::session::Session;
 use crate::ui;
@@ -56,7 +57,9 @@ impl App {
     fn run_loop(&mut self, terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
         let input_poll = Duration::from_millis(200);
         let refresh_interval = Duration::from_secs(2);
+        let preview_interval = Duration::from_secs(1);
         let mut last_refresh = Instant::now();
+        let mut last_preview = Instant::now();
 
         loop {
             terminal.draw(|frame| ui::render(frame, &self.state))?;
@@ -78,6 +81,13 @@ impl App {
             if last_refresh.elapsed() >= refresh_interval {
                 self.refresh_sessions();
                 last_refresh = Instant::now();
+            }
+
+            if matches!(self.state.focus, state::FocusRegion::Details)
+                && last_preview.elapsed() >= preview_interval
+            {
+                self.refresh_preview();
+                last_preview = Instant::now();
             }
         }
 
@@ -107,9 +117,14 @@ impl App {
                     self.state.select();
                 }
             }
-            Action::Back => {
+            Action::Expand => {
                 if matches!(self.state.focus, state::FocusRegion::Tree) {
-                    self.state.back();
+                    self.state.expand_selected_session();
+                }
+            }
+            Action::Collapse => {
+                if matches!(self.state.focus, state::FocusRegion::Tree) {
+                    self.state.collapse_selected_session();
                 }
             }
             Action::ToggleExpand => {
@@ -119,6 +134,9 @@ impl App {
             }
             Action::CycleFocus => {
                 self.state.cycle_focus();
+                if matches!(self.state.focus, state::FocusRegion::Details) {
+                    self.refresh_preview();
+                }
                 self.state.status = Some(state::StatusLine {
                     message: format!("Focus: {}", self.state.focus_label()),
                     is_error: false,
@@ -442,8 +460,9 @@ impl App {
         match code {
             KeyCode::Up | KeyCode::Char('k') => Some(Action::MoveUp),
             KeyCode::Down | KeyCode::Char('j') => Some(Action::MoveDown),
-            KeyCode::Left | KeyCode::Char('h') => Some(Action::Back),
-            KeyCode::Right | KeyCode::Enter | KeyCode::Char('l') => Some(Action::Select),
+            KeyCode::Left | KeyCode::Char('h') => Some(Action::Collapse),
+            KeyCode::Right | KeyCode::Char('l') => Some(Action::Expand),
+            KeyCode::Enter => Some(Action::Select),
             KeyCode::Tab => Some(Action::CycleFocus),
             KeyCode::Char(' ') => Some(Action::ToggleExpand),
             KeyCode::Char('R' | 'r') => Some(Action::Refresh),
@@ -461,6 +480,9 @@ impl App {
             Ok(outcome) => {
                 let count = outcome.sessions.len();
                 self.state.set_sessions(outcome.sessions);
+                if matches!(self.state.focus, state::FocusRegion::Details) {
+                    self.refresh_preview();
+                }
 
                 if !outcome.skipped_sessions.is_empty() {
                     self.state.status = Some(state::StatusLine {
@@ -487,6 +509,29 @@ impl App {
                     message: format!("Refresh failed: {error}"),
                     is_error: true,
                 });
+            }
+        }
+    }
+
+    fn refresh_preview(&mut self) {
+        let Some(session_name) = self.state.selected_session_name() else {
+            self.state.preview = String::from("No selection");
+            self.state.preview_is_error = false;
+            return;
+        };
+
+        match capture_preview(session_name, self.state.selected_window_index()) {
+            Ok(output) => {
+                self.state.preview = if output.trim().is_empty() {
+                    String::from("(empty output)")
+                } else {
+                    output
+                };
+                self.state.preview_is_error = false;
+            }
+            Err(error) => {
+                self.state.preview = format!("Preview unavailable: {error}");
+                self.state.preview_is_error = true;
             }
         }
     }

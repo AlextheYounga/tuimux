@@ -1,9 +1,10 @@
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Padding, Paragraph};
 
 use crate::app::state::State;
+use crate::ui::theme;
 
 pub fn render(frame: &mut Frame, area: Rect, state: &State) {
     let mut lines = Vec::new();
@@ -14,39 +15,46 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
         for (session_index, session) in state.sessions.iter().enumerate() {
             let expanded = state.expanded_sessions.contains(&session.name);
             let fold = if expanded { "[-]" } else { "[+]" };
-            let marker = if state.selected_session == Some(session_index) {
-                ">"
-            } else {
-                " "
-            };
-            lines.push(Line::from(format!("{marker} {fold} {}", session.name)));
+            let is_selected_session =
+                state.selected_session == Some(session_index) && state.selected_window.is_none();
+            let marker = if is_selected_session { ">" } else { " " };
+            let mut line = Line::from(format!("{marker} {fold} {}", session.name));
+            if is_selected_session {
+                line = line.style(theme::selected_row());
+            }
+            lines.push(line);
 
             if !expanded {
                 continue;
             }
 
             for (window_index, window) in session.windows.iter().enumerate() {
-                let marker = if state.selected_session == Some(session_index)
-                    && state.selected_window == Some(window_index)
-                {
-                    "*"
-                } else {
-                    "-"
-                };
-                lines.push(Line::from(format!(
-                    "  {marker} [{}] {}",
-                    window.index, window.name
-                )));
+                let is_selected_window = state.selected_session == Some(session_index)
+                    && state.selected_window == Some(window_index);
+                let marker = if is_selected_window { "*" } else { "-" };
+                let mut line = Line::from(format!("  {marker} [{}] {}", window.index, window.name));
+                if is_selected_window {
+                    line = line.style(theme::selected_row());
+                }
+                lines.push(line);
             }
         }
     }
 
-    let title = if state.focus_label() == "tree" {
+    let focused = state.focus_label() == "tree";
+    let title = if focused {
         "Sessions (focus)"
     } else {
         "Sessions"
     };
 
-    let tree = Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title(title));
+    let tree = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(theme::panel_border(focused))
+            .title(title)
+            .title_style(theme::panel_title(focused))
+            .padding(Padding::new(1, 1, 0, 0)),
+    );
     frame.render_widget(tree, area);
 }

@@ -10,10 +10,16 @@ pub struct Regions {
 
 #[must_use]
 pub fn split(area: Rect) -> Regions {
+    let canvas = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1)])
+        .margin(1)
+        .split(area)[0];
+
     let vertical = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(3), Constraint::Length(3)])
-        .split(area);
+        .constraints([Constraint::Min(4), Constraint::Length(4)])
+        .split(canvas);
 
     let top = vertical[0];
     let bottom = vertical[1];
@@ -27,7 +33,7 @@ pub fn split(area: Rect) -> Regions {
         left: horizontal[0],
         right: horizontal[1],
         bottom,
-        overlay: centered_rect(60, 30, area),
+        overlay: centered_rect(60, 30, canvas),
     }
 }
 

@@ -42,8 +42,8 @@ pub fn get_session(session_name: Option<&str>) -> Result<Session> {
     let path = get_session_path(&name)
         .with_context(|| format!("Failed to get working directory for session '{name}'"))?;
 
-    let windows =
-        get_windows(&name).with_context(|| format!("Failed to get windows for session '{name}'"))?;
+    let windows = get_windows(&name)
+        .with_context(|| format!("Failed to get windows for session '{name}'"))?;
 
     Ok(Session {
         name,
@@ -199,6 +199,36 @@ pub fn attach_to_window(session_name: &str, window_index: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Captures text output from the active pane in a tmux target.
+///
+/// # Arguments
+/// * `session_name` - tmux session name.
+/// * `window_index` - optional tmux window index.
+///
+/// # Errors
+/// Returns an error when tmux capture-pane fails.
+pub fn capture_preview(session_name: &str, window_index: Option<&str>) -> Result<String> {
+    let target = match window_index {
+        Some(index) => format!("{session_name}:{index}"),
+        None => session_name.to_string(),
+    };
+
+    let output = Command::new("tmux")
+        .args(["capture-pane", "-p", "-S", "-200", "-t", &target])
+        .output()
+        .with_context(|| format!("Failed to capture pane output for target {target}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("tmux capture-pane failed for {target}: {stderr}");
+    }
+
+    let output = String::from_utf8(output.stdout)
+        .context("Failed to convert tmux capture-pane output to UTF-8")?;
+
+    Ok(output.trim_end().to_string())
 }
 
 /// Creates a detached tmux session.
