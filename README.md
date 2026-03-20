@@ -23,16 +23,16 @@ It gives you a fast dashboard to:
 - `tmux` installed and available in `PATH`
 - Linux/macOS shell environment
 
-## Run
+## Install
 
+From crates.io
 ```bash
-cargo run
+cargo install tuimux
 ```
 
-Build release:
-
+From this repository:
 ```bash
-cargo build --release
+cargo install --git https://github.com/AlextheYounga/tuimux.git tuimux
 ```
 
 ## Keybindings
@@ -56,28 +56,3 @@ Actions:
 Quit:
 - `q`, `Esc`, or `Ctrl-C`
 
-## Notes
-
-- The preview pane captures tmux pane output using `tmux capture-pane`.
-- If no tmux server is running, tuimux starts in an empty state and remains usable.
-- Session/window mutations are performed through tmux commands directly.
-
-## Development
-
-Format:
-
-```bash
-cargo fmt
-```
-
-Check compile:
-
-```bash
-cargo check
-```
-
-Lint:
-
-```bash
-cargo clippy --all-targets --all-features
-```
