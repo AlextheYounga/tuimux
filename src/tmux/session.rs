@@ -3,6 +3,8 @@
 //!
 //! Serializable data structures representing the hierarchy of a tmux session
 //! [`Session`] -> [`Window`] -> [`Pane`]
+use std::fmt::Write;
+
 use serde::{Deserialize, Serialize};
 
 /// Represents a tmux pane that lives inside a tmux window.
@@ -55,11 +57,12 @@ impl Pane {
     /// };
     /// assert_eq!(pane.get_preview(true), "(0) bash");
     /// ```
+    #[must_use]
     pub fn get_preview(&self, show_index: bool) -> String {
         let mut preview = String::new();
 
         if show_index {
-            preview += &format!("({}) ", self.index);
+            let _ = write!(preview, "({}) ", self.index);
         }
 
         preview += match self.current_command.as_ref() {
@@ -79,6 +82,7 @@ impl Window {
     ///
     /// This method formats the window name, followed by each pane preview,
     /// in a tree-like visual layout.
+    #[must_use]
     pub fn get_preview(&self, add_connector: bool) -> String {
         if self.panes.len() == 1 {
             return format!("{}: {}\n", self.name, self.panes[0].get_preview(false));
@@ -90,16 +94,18 @@ impl Window {
 
         let mut pane_idx = 0;
         while pane_idx < self.panes.len() - 1 {
-            preview += &format!(
-                " {}  ╠═ {}\n",
+            let _ = writeln!(
+                preview,
+                " {}  ╠═ {}",
                 connector,
                 self.panes[pane_idx].get_preview(true)
             );
             pane_idx += 1;
         }
 
-        preview += &format!(
-            " {}  ╚═ {}\n",
+        let _ = writeln!(
+            preview,
+            " {}  ╚═ {}",
             connector,
             self.panes[pane_idx].get_preview(true)
         );
@@ -113,6 +119,7 @@ impl Session {
     ///
     /// This method creates a tree-like view of the tmux session, showing the
     /// hierarchy from session → windows → panes.
+    #[must_use]
     pub fn get_preview(&self) -> String {
         if self.windows.is_empty() {
             return format!("{}:\n ╚══ (no windows)\n", self.name);
@@ -125,7 +132,12 @@ impl Session {
             let window = &self.windows[window_idx];
             let end_connector = if window.panes.len() > 1 { "╦═" } else { "" };
 
-            preview += &format!(" ╠══{} {}", end_connector, window.get_preview(true));
+            let _ = write!(
+                preview,
+                " ╠══{} {}",
+                end_connector,
+                window.get_preview(true)
+            );
             window_idx += 1;
         }
 
@@ -136,7 +148,8 @@ impl Session {
             ""
         };
 
-        preview += &format!(
+        let _ = write!(
+            preview,
             " ╚══{} {}",
             end_connector,
             last_window.get_preview(false) // no need to add connector on last window

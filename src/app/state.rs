@@ -27,16 +27,16 @@ pub struct StatusLine {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ModalState {
+pub enum Modal {
     Input { title: String, value: String },
     Confirm { title: String, prompt: String },
 }
 
 #[derive(Debug, Default)]
-pub struct AppState {
+pub struct State {
     pub focus: FocusRegion,
     pub selection: Option<TreeSelection>,
     pub expanded_sessions: BTreeSet<String>,
     pub status: Option<StatusLine>,
-    pub modal: Option<ModalState>,
+    pub modal: Option<Modal>,
 }

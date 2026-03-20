@@ -1,17 +1,13 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
+use ratatui::Frame;
 
-use crate::app::state::{AppState, ModalState};
+use crate::app::state::{Modal, State};
 
-pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
+pub fn render(frame: &mut Frame, area: Rect, state: &State) {
     let body = match &state.modal {
-        Some(ModalState::Input { title, value }) => {
-            format!("{}\n\n{}", title, value)
-        }
-        Some(ModalState::Confirm { title, prompt }) => {
-            format!("{}\n\n{}", title, prompt)
-        }
+        Some(Modal::Input { title, value }) => format!("{title}\n\n{value}"),
+        Some(Modal::Confirm { title, prompt }) => format!("{title}\n\n{prompt}"),
         None => return,
     };
 

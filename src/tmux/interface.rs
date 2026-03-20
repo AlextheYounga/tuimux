@@ -5,14 +5,15 @@
 //! sessions using [`std::process::Command`].
 use std::borrow::Cow;
 use std::env;
+use std::fmt::Write;
 use std::fs::write;
-use std::process::Command;
+use std::process::{self, Command};
 
 use anyhow::{Context, Result};
 use shell_escape::escape;
 use tempfile::NamedTempFile;
 
-use crate::tmux::session::*;
+use crate::tmux::session::{Pane, Session, Window};
 
 const TMUX_FIELD_SEPARATOR: &str = "\x1f";
 const TMUX_LINE_SEPARATOR: &str = "\n";
@@ -74,35 +75,38 @@ pub fn restore_session(session: &Session) -> Result<()> {
         anyhow::bail!("Cannot restore session without windows");
     }
 
-    let temp_session_name = format!("tsman-temp-{}", std::process::id());
+    let temp_session_name = format!("tsman-temp-{}", process::id());
 
     let mut script_str = String::new();
 
-    script_str += &format!(
-        "tmux new-session -d -s {} -c {}\n",
+    writeln!(
+        script_str,
+        "tmux new-session -d -s {} -c {}",
         temp_session_name,
         escape(Cow::from(&session.work_dir))
-    );
+    )?;
 
     let first_window = &session.windows[0];
 
     script_str += &get_window_config_cmd(&temp_session_name, session, first_window)?;
 
     for window in session.windows.iter().skip(1) {
-        script_str += &format!(
-            "tmux new-window -d -t {} -c {}\n",
+        writeln!(
+            script_str,
+            "tmux new-window -d -t {} -c {}",
             temp_session_name,
             escape(Cow::from(&session.work_dir))
-        );
+        )?;
 
         script_str += &get_window_config_cmd(&temp_session_name, session, window)?;
     }
 
     // this helps avoid naming conflicts inside tmux
-    script_str += &format!(
-        "tmux rename-session -t {} {}\n",
+    writeln!(
+        script_str,
+        "tmux rename-session -t {} {}",
         temp_session_name, session.name
-    );
+    )?;
 
     let script = NamedTempFile::new()?;
 
@@ -141,7 +145,7 @@ pub fn is_active_session(session_name: &str) -> Result<bool> {
 
 /// Attaches to or switches to a tmux session.
 ///
-/// If already inside tmux, uses `switch-client`.  
+/// If already inside tmux, uses `switch-client`.\
 /// If outside, uses `attach-session`.
 ///
 /// # Arguments
@@ -166,6 +170,10 @@ pub fn attach_to_session(session_name: &str) -> Result<()> {
     Ok(())
 }
 
+/// Renames a tmux session.
+///
+/// # Errors
+/// Returns an error if `tmux rename-session` fails.
 pub fn rename_session(session_name: &str, new_name: &str) -> Result<()> {
     Command::new("tmux")
         .arg("rename-session")
@@ -330,7 +338,7 @@ fn parse_window_string(window: &str, session_name: &str) -> Result<Window> {
             })
         }
         _ => {
-            anyhow::bail!(format!("Failed to parse window string: {}", window))
+            anyhow::bail!("Failed to parse window string: {window}")
         }
     }
 }
@@ -383,7 +391,7 @@ fn parse_pane_string(pane: &str) -> Result<Pane> {
             let process = get_foreground_process(pid)?;
 
             let current_command = match process {
-                Some((cmd_pid, cmdline)) if std::process::id() != cmd_pid => Some(cmdline),
+                Some((cmd_pid, cmdline)) if process::id() != cmd_pid => Some(cmdline),
                 _ => None,
             };
 
@@ -393,7 +401,7 @@ fn parse_pane_string(pane: &str) -> Result<Pane> {
                 work_dir: work_dir_str.to_string(),
             })
         }
-        _ => anyhow::bail!("Failed to parse pane string: {}", pane),
+        _ => anyhow::bail!("Failed to parse pane string: {pane}"),
     }
 }
 
@@ -469,39 +477,43 @@ fn get_window_config_cmd(
 
     let mut cmd = String::new();
 
-    cmd += &format!("tmux rename-window -t {} {}\n", window_target, window.name);
+    writeln!(cmd, "tmux rename-window -t {} {}", window_target, window.name)?;
 
     for _ in window.panes.iter().skip(1) {
-        cmd += &format!(
-            "tmux split-window -d -t {} -c {}\n",
+        writeln!(
+            cmd,
+            "tmux split-window -d -t {} -c {}",
             window_target,
             escape(Cow::from(&session.work_dir))
-        );
+        )?;
     }
 
-    cmd += &format!(
-        "tmux select-layout -t {} {}\n",
+    writeln!(
+        cmd,
+        "tmux select-layout -t {} {}",
         window_target,
         escape(Cow::from(&window.layout))
-    );
+    )?;
 
     for pane in &window.panes {
         let pane_target = format!("{}.{}", window_target, pane.index);
 
         if pane.work_dir != session.work_dir {
-            cmd += &format!(
-                "tmux send-keys -t {} {} C-m\n",
+            writeln!(
+                cmd,
+                "tmux send-keys -t {} {} C-m",
                 pane_target,
                 escape(format!("cd {}; clear", escape(Cow::from(&pane.work_dir))).into()),
-            );
+            )?;
         }
 
         if let Some(pane_cmd) = &pane.current_command {
-            cmd += &format!(
-                "tmux send-keys -t {} {} C-m\n",
+            writeln!(
+                cmd,
+                "tmux send-keys -t {} {} C-m",
                 pane_target,
                 escape(pane_cmd.into())
-            );
+            )?;
         }
     }
 

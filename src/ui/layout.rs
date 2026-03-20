@@ -8,6 +8,7 @@ pub struct Regions {
     pub overlay: Rect,
 }
 
+#[must_use]
 pub fn split(area: Rect) -> Regions {
     let vertical = Layout::default()
         .direction(Direction::Vertical)

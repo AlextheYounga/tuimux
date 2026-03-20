@@ -6,9 +6,9 @@ pub mod tree;
 
 use ratatui::Frame;
 
-use crate::app::state::AppState;
+use crate::app::state::State;
 
-pub fn render(frame: &mut Frame, state: &AppState) {
+pub fn render(frame: &mut Frame, state: &State) {
     let regions = layout::split(frame.area());
 
     tree::render(frame, regions.left, state);
