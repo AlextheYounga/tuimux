@@ -477,7 +477,11 @@ fn get_window_config_cmd(
 
     let mut cmd = String::new();
 
-    writeln!(cmd, "tmux rename-window -t {} {}", window_target, window.name)?;
+    writeln!(
+        cmd,
+        "tmux rename-window -t {} {}",
+        window_target, window.name
+    )?;
 
     for _ in window.panes.iter().skip(1) {
         writeln!(

@@ -48,6 +48,8 @@ pub struct State {
 
 impl State {
     pub fn set_sessions(&mut self, sessions: Vec<Session>) {
+        let previous_selection = self.selection.clone();
+        let previous_expanded = self.expanded_sessions.clone();
         self.sessions = sessions;
 
         if self.sessions.is_empty() {
@@ -58,17 +60,223 @@ impl State {
             return;
         }
 
-        let selected = self.selected_session.unwrap_or(0);
-        let selected = selected.min(self.sessions.len() - 1);
-        self.selected_session = Some(selected);
+        if previous_expanded.is_empty() {
+            self.expanded_sessions = self
+                .sessions
+                .iter()
+                .map(|session| session.name.clone())
+                .collect();
+        } else {
+            self.expanded_sessions = self
+                .sessions
+                .iter()
+                .filter_map(|session| {
+                    if previous_expanded.contains(&session.name) {
+                        Some(session.name.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+        }
 
-        self.expanded_sessions = self
-            .sessions
-            .iter()
-            .map(|session| session.name.clone())
-            .collect();
+        if !self.restore_selection(previous_selection) {
+            self.selected_session = Some(0);
+            self.selected_window = None;
+            self.sync_selection();
+        }
+    }
 
-        let session = &self.sessions[selected];
+    pub fn move_up(&mut self) {
+        let rows = self.tree_rows();
+        let Some(current) = self.selected_row_index(&rows) else {
+            return;
+        };
+        if current == 0 {
+            return;
+        }
+
+        self.apply_row_selection(&rows[current - 1]);
+    }
+
+    pub fn move_down(&mut self) {
+        let rows = self.tree_rows();
+        let Some(current) = self.selected_row_index(&rows) else {
+            return;
+        };
+        if current + 1 >= rows.len() {
+            return;
+        }
+
+        self.apply_row_selection(&rows[current + 1]);
+    }
+
+    pub fn select(&mut self) {
+        let Some(session_index) = self.selected_session else {
+            return;
+        };
+        let Some(session) = self.sessions.get(session_index) else {
+            return;
+        };
+
+        if self.selected_window.is_some() {
+            return;
+        }
+
+        if session.windows.is_empty() {
+            return;
+        }
+
+        self.selected_window = Some(0);
+        self.sync_selection();
+    }
+
+    pub fn back(&mut self) {
+        self.selected_window = None;
+        self.sync_selection();
+    }
+
+    pub fn toggle_expand(&mut self) {
+        let Some(session_index) = self.selected_session else {
+            return;
+        };
+
+        let Some(session) = self.sessions.get(session_index) else {
+            return;
+        };
+
+        if self.expanded_sessions.contains(&session.name) {
+            self.expanded_sessions.remove(&session.name);
+            self.selected_window = None;
+        } else {
+            self.expanded_sessions.insert(session.name.clone());
+        }
+
+        self.sync_selection();
+    }
+
+    pub fn cycle_focus(&mut self) {
+        self.focus = match self.focus {
+            FocusRegion::Tree => FocusRegion::Details,
+            FocusRegion::Details => FocusRegion::Help,
+            FocusRegion::Help | FocusRegion::Modal => FocusRegion::Tree,
+        };
+    }
+
+    #[must_use]
+    pub fn focus_label(&self) -> &'static str {
+        match self.focus {
+            FocusRegion::Tree => "tree",
+            FocusRegion::Details => "details",
+            FocusRegion::Help => "help",
+            FocusRegion::Modal => "modal",
+        }
+    }
+
+    fn restore_selection(&mut self, previous_selection: Option<TreeSelection>) -> bool {
+        let Some(previous_selection) = previous_selection else {
+            return false;
+        };
+
+        match previous_selection {
+            TreeSelection::Window {
+                session_name,
+                window_index,
+            } => {
+                let Some((session_index, session)) = self
+                    .sessions
+                    .iter()
+                    .enumerate()
+                    .find(|(_, session)| session.name == session_name)
+                else {
+                    return false;
+                };
+
+                let Some(window_index_pos) = session
+                    .windows
+                    .iter()
+                    .position(|window| window.index == window_index)
+                else {
+                    self.selected_session = Some(session_index);
+                    self.selected_window = None;
+                    self.sync_selection();
+                    return true;
+                };
+
+                self.selected_session = Some(session_index);
+                self.selected_window = Some(window_index_pos);
+                self.sync_selection();
+                true
+            }
+            TreeSelection::Session { name } => {
+                let Some(session_index) = self
+                    .sessions
+                    .iter()
+                    .position(|session| session.name == name)
+                else {
+                    return false;
+                };
+
+                self.selected_session = Some(session_index);
+                self.selected_window = None;
+                self.sync_selection();
+                true
+            }
+        }
+    }
+
+    fn tree_rows(&self) -> Vec<TreeRow> {
+        let mut rows = Vec::new();
+
+        for (session_index, session) in self.sessions.iter().enumerate() {
+            rows.push(TreeRow {
+                session_index,
+                window_index: None,
+            });
+
+            if !self.expanded_sessions.contains(&session.name) {
+                continue;
+            }
+
+            for (window_index, _) in session.windows.iter().enumerate() {
+                rows.push(TreeRow {
+                    session_index,
+                    window_index: Some(window_index),
+                });
+            }
+        }
+
+        rows
+    }
+
+    fn selected_row_index(&self, rows: &[TreeRow]) -> Option<usize> {
+        rows.iter().position(|row| {
+            self.selected_session == Some(row.session_index)
+                && self.selected_window == row.window_index
+        })
+    }
+
+    fn apply_row_selection(&mut self, row: &TreeRow) {
+        self.selected_session = Some(row.session_index);
+        self.selected_window = row.window_index;
+        self.sync_selection();
+    }
+
+    fn sync_selection(&mut self) {
+        let Some(session_index) = self.selected_session else {
+            self.selection = None;
+            return;
+        };
+
+        let Some(session) = self.sessions.get(session_index) else {
+            self.selection = None;
+            return;
+        };
+
+        if !self.expanded_sessions.contains(&session.name) {
+            self.selected_window = None;
+        }
+
         if session.windows.is_empty() {
             self.selected_window = None;
             self.selection = Some(TreeSelection::Session {
@@ -77,14 +285,20 @@ impl State {
             return;
         }
 
-        let selected_window = self
-            .selected_window
-            .unwrap_or(0)
-            .min(session.windows.len() - 1);
-        self.selected_window = Some(selected_window);
-        self.selection = Some(TreeSelection::Window {
-            session_name: session.name.clone(),
-            window_index: session.windows[selected_window].index.clone(),
+        if let Some(window_index) = self.selected_window {
+            if let Some(window) = session.windows.get(window_index) {
+                self.selection = Some(TreeSelection::Window {
+                    session_name: session.name.clone(),
+                    window_index: window.index.clone(),
+                });
+                return;
+            }
+
+            self.selected_window = None;
+        }
+
+        self.selection = Some(TreeSelection::Session {
+            name: session.name.clone(),
         });
     }
 
@@ -100,4 +314,10 @@ impl State {
         let index = self.selected_window?;
         session.windows.get(index)
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TreeRow {
+    session_index: usize,
+    window_index: Option<usize>,
 }

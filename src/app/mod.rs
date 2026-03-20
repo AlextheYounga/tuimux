@@ -2,14 +2,17 @@ pub mod actions;
 pub mod state;
 
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::ExecutableCommand;
-use ratatui::backend::CrosstermBackend;
+use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::terminal::{
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+};
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 use std::io::{self, Stdout};
 use std::time::{Duration, Instant};
 
+use crate::app::actions::Action;
 use crate::app::state::State;
 use crate::tmux::interface::{get_session, list_active_sessions};
 use crate::tmux::session::Session;
@@ -53,10 +56,8 @@ impl App {
                 && let Event::Key(key_event) = event::read()?
                 && key_event.kind == KeyEventKind::Press
             {
-                let should_quit = matches!(key_event.code, KeyCode::Esc | KeyCode::Char('q'))
-                    || (matches!(key_event.code, KeyCode::Char('c'))
-                        && key_event.modifiers.contains(KeyModifiers::CONTROL));
-                if should_quit {
+                let action = Self::action_from_key(key_event.code, key_event.modifiers);
+                if self.handle_action(action) {
                     break;
                 }
             }
@@ -68,6 +69,85 @@ impl App {
         }
 
         Ok(())
+    }
+
+    fn handle_action(&mut self, action: Option<Action>) -> bool {
+        let Some(action) = action else {
+            return false;
+        };
+
+        match action {
+            Action::Quit => return true,
+            Action::Refresh => self.refresh_sessions(),
+            Action::MoveUp => {
+                if matches!(self.state.focus, state::FocusRegion::Tree) {
+                    self.state.move_up();
+                }
+            }
+            Action::MoveDown => {
+                if matches!(self.state.focus, state::FocusRegion::Tree) {
+                    self.state.move_down();
+                }
+            }
+            Action::Select => {
+                if matches!(self.state.focus, state::FocusRegion::Tree) {
+                    self.state.select();
+                }
+            }
+            Action::Back => {
+                if matches!(self.state.focus, state::FocusRegion::Tree) {
+                    self.state.back();
+                }
+            }
+            Action::ToggleExpand => {
+                if matches!(self.state.focus, state::FocusRegion::Tree) {
+                    self.state.toggle_expand();
+                }
+            }
+            Action::CycleFocus => {
+                self.state.cycle_focus();
+                self.state.status = Some(state::StatusLine {
+                    message: format!("Focus: {}", self.state.focus_label()),
+                    is_error: false,
+                });
+            }
+            Action::Attach
+            | Action::CreateSession
+            | Action::CreateWindow
+            | Action::Rename
+            | Action::Close => {
+                self.state.status = Some(state::StatusLine {
+                    message: String::from("Action not available in phase 4 yet"),
+                    is_error: false,
+                });
+            }
+        }
+
+        false
+    }
+
+    fn action_from_key(code: KeyCode, modifiers: KeyModifiers) -> Option<Action> {
+        if matches!(code, KeyCode::Esc | KeyCode::Char('q'))
+            || (matches!(code, KeyCode::Char('c')) && modifiers.contains(KeyModifiers::CONTROL))
+        {
+            return Some(Action::Quit);
+        }
+
+        match code {
+            KeyCode::Up | KeyCode::Char('k') => Some(Action::MoveUp),
+            KeyCode::Down | KeyCode::Char('j') => Some(Action::MoveDown),
+            KeyCode::Left | KeyCode::Char('h') => Some(Action::Back),
+            KeyCode::Right | KeyCode::Enter | KeyCode::Char('l') => Some(Action::Select),
+            KeyCode::Tab => Some(Action::CycleFocus),
+            KeyCode::Char(' ') => Some(Action::ToggleExpand),
+            KeyCode::Char('R' | 'r') => Some(Action::Refresh),
+            KeyCode::Char('a') => Some(Action::Attach),
+            KeyCode::Char('c') => Some(Action::CreateSession),
+            KeyCode::Char('w') => Some(Action::CreateWindow),
+            KeyCode::Char('n') => Some(Action::Rename),
+            KeyCode::Char('x') => Some(Action::Close),
+            _ => None,
+        }
     }
 
     fn refresh_sessions(&mut self) {

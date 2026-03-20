@@ -1,8 +1,8 @@
 use std::fmt::Write;
 
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use ratatui::Frame;
 
 use crate::app::state::State;
 
