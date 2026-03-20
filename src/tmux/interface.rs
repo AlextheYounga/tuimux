@@ -349,10 +349,7 @@ fn get_panes(window_target: &str) -> Result<Vec<Pane>> {
     let output = Command::new("tmux")
         .arg("list-panes")
         .args(["-t", window_target])
-        .args([
-            "-F",
-            "#{pane_index}\x1f#{pane_pid}\x1f#{pane_current_path}",
-        ])
+        .args(["-F", "#{pane_index}\x1f#{pane_pid}\x1f#{pane_current_path}"])
         .output()
         .with_context(|| {
             format!("Failed to execute 'tmux list-panes' for window {window_target}",)
