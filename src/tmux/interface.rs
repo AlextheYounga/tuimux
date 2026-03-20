@@ -39,9 +39,11 @@ pub fn get_session(session_name: Option<&str>) -> Result<Session> {
         get_session_name()?
     };
 
-    let path = get_session_path(&name)?;
+    let path = get_session_path(&name)
+        .with_context(|| format!("Failed to get working directory for session '{name}'"))?;
 
-    let windows = get_windows(&name).context("Failed to get windows")?;
+    let windows =
+        get_windows(&name).with_context(|| format!("Failed to get windows for session '{name}'"))?;
 
     Ok(Session {
         name,
@@ -336,20 +338,20 @@ pub fn get_session_name() -> Result<String> {
 /// # Errors
 /// Returns an error if tmux commands fail.
 pub fn list_active_sessions() -> Result<Vec<String>> {
-    let status = Command::new("tmux")
-        .arg("has-session")
-        .status()
-        .context("Failed to check tmux server status")?;
-
-    if !status.success() {
-        return Ok(Vec::new()); // server not running
-    }
-
     let output = Command::new("tmux")
         .arg("list-sessions")
         .args(["-F", "#{session_name}"])
         .output()
         .context("Failed to get active sessions")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains("no server running") {
+            return Ok(Vec::new());
+        }
+
+        anyhow::bail!("tmux list-sessions failed: {stderr}");
+    }
 
     let string_output = String::from_utf8(output.stdout)
         .context("Failed to convert tmux output to UTF-8 string")?;

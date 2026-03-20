@@ -22,6 +22,12 @@ use crate::tmux::session::Session;
 use crate::ui;
 
 #[derive(Debug, Default)]
+struct RefreshOutcome {
+    sessions: Vec<Session>,
+    skipped_sessions: Vec<String>,
+}
+
+#[derive(Debug, Default)]
 pub struct App {
     pub state: State,
 }
@@ -452,13 +458,29 @@ impl App {
 
     fn refresh_sessions(&mut self) {
         match Self::fetch_sessions() {
-            Ok(sessions) => {
-                let count = sessions.len();
-                self.state.set_sessions(sessions);
-                self.state.status = Some(state::StatusLine {
-                    message: format!("Loaded {count} sessions"),
-                    is_error: false,
-                });
+            Ok(outcome) => {
+                let count = outcome.sessions.len();
+                self.state.set_sessions(outcome.sessions);
+
+                if !outcome.skipped_sessions.is_empty() {
+                    self.state.status = Some(state::StatusLine {
+                        message: format!(
+                            "Loaded {count} sessions, skipped {}",
+                            outcome.skipped_sessions.len()
+                        ),
+                        is_error: true,
+                    });
+                } else if count == 0 {
+                    self.state.status = Some(state::StatusLine {
+                        message: String::from("No active tmux sessions"),
+                        is_error: false,
+                    });
+                } else {
+                    self.state.status = Some(state::StatusLine {
+                        message: format!("Loaded {count} sessions"),
+                        is_error: false,
+                    });
+                }
             }
             Err(error) => {
                 self.state.status = Some(state::StatusLine {
@@ -469,16 +491,23 @@ impl App {
         }
     }
 
-    fn fetch_sessions() -> Result<Vec<Session>> {
+    fn fetch_sessions() -> Result<RefreshOutcome> {
         let names = list_active_sessions()?;
-        let mut sessions = Vec::with_capacity(names.len());
+        let mut outcome = RefreshOutcome {
+            sessions: Vec::with_capacity(names.len()),
+            skipped_sessions: Vec::new(),
+        };
 
         for name in names {
-            let session = get_session(Some(&name))?;
-            sessions.push(session);
+            match get_session(Some(&name)) {
+                Ok(session) => outcome.sessions.push(session),
+                Err(error) => {
+                    outcome.skipped_sessions.push(format!("{name}: {error}"));
+                }
+            }
         }
 
-        Ok(sessions)
+        Ok(outcome)
     }
 
     fn init_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>> {
