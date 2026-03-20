@@ -120,29 +120,27 @@ impl State {
     }
 
     pub fn move_up(&mut self) {
-        let Some(current) = self.selected_session else {
+        let rows = self.tree_rows();
+        let Some(current) = self.selected_row_index(&rows) else {
             return;
         };
         if current == 0 {
             return;
         }
 
-        self.selected_session = Some(current - 1);
-        self.selected_window = None;
-        self.sync_selection();
+        self.apply_row_selection(&rows[current - 1]);
     }
 
     pub fn move_down(&mut self) {
-        let Some(current) = self.selected_session else {
+        let rows = self.tree_rows();
+        let Some(current) = self.selected_row_index(&rows) else {
             return;
         };
-        if current + 1 >= self.sessions.len() {
+        if current + 1 >= rows.len() {
             return;
         }
 
-        self.selected_session = Some(current + 1);
-        self.selected_window = None;
-        self.sync_selection();
+        self.apply_row_selection(&rows[current + 1]);
     }
 
     pub fn select(&mut self) {
@@ -333,6 +331,43 @@ impl State {
         }
     }
 
+    fn tree_rows(&self) -> Vec<TreeRow> {
+        let mut rows = Vec::new();
+
+        for (session_index, session) in self.sessions.iter().enumerate() {
+            rows.push(TreeRow {
+                session_index,
+                window_index: None,
+            });
+
+            if !self.expanded_sessions.contains(&session.name) {
+                continue;
+            }
+
+            for (window_index, _) in session.windows.iter().enumerate() {
+                rows.push(TreeRow {
+                    session_index,
+                    window_index: Some(window_index),
+                });
+            }
+        }
+
+        rows
+    }
+
+    fn selected_row_index(&self, rows: &[TreeRow]) -> Option<usize> {
+        rows.iter().position(|row| {
+            self.selected_session == Some(row.session_index)
+                && self.selected_window == row.window_index
+        })
+    }
+
+    fn apply_row_selection(&mut self, row: &TreeRow) {
+        self.selected_session = Some(row.session_index);
+        self.selected_window = row.window_index;
+        self.sync_selection();
+    }
+
     fn sync_selection(&mut self) {
         let Some(session_index) = self.selected_session else {
             self.selection = None;
@@ -385,4 +420,10 @@ impl State {
         let index = self.selected_window?;
         session.windows.get(index)
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TreeRow {
+    session_index: usize,
+    window_index: Option<usize>,
 }

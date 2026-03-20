@@ -215,20 +215,45 @@ pub fn capture_preview(session_name: &str, window_index: Option<&str>) -> Result
         None => session_name.to_string(),
     };
 
+    let pane_target = resolve_preview_pane(&target)?;
+
     let output = Command::new("tmux")
-        .args(["capture-pane", "-p", "-S", "-200", "-t", &target])
+        .args(["capture-pane", "-p", "-S", "-200", "-t", &pane_target])
         .output()
-        .with_context(|| format!("Failed to capture pane output for target {target}"))?;
+        .with_context(|| format!("Failed to capture pane output for target {pane_target}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("tmux capture-pane failed for {target}: {stderr}");
+        anyhow::bail!("tmux capture-pane failed for {pane_target}: {stderr}");
     }
 
     let output = String::from_utf8(output.stdout)
         .context("Failed to convert tmux capture-pane output to UTF-8")?;
 
     Ok(output.trim_end().to_string())
+}
+
+fn resolve_preview_pane(target: &str) -> Result<String> {
+    let output = Command::new("tmux")
+        .args(["list-panes", "-t", target, "-F", "#{pane_id}"])
+        .output()
+        .with_context(|| format!("Failed to list panes for target {target}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("tmux list-panes failed for {target}: {stderr}");
+    }
+
+    let output = String::from_utf8(output.stdout)
+        .context("Failed to convert tmux list-panes output to UTF-8")?;
+
+    let pane_id = output
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("No panes found for target {target}"))?;
+
+    Ok(pane_id.to_string())
 }
 
 /// Creates a detached tmux session.

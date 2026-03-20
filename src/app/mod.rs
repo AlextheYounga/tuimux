@@ -83,9 +83,7 @@ impl App {
                 last_refresh = Instant::now();
             }
 
-            if matches!(self.state.focus, state::FocusRegion::Details)
-                && last_preview.elapsed() >= preview_interval
-            {
+            if last_preview.elapsed() >= preview_interval {
                 self.refresh_preview();
                 last_preview = Instant::now();
             }
@@ -480,9 +478,7 @@ impl App {
             Ok(outcome) => {
                 let count = outcome.sessions.len();
                 self.state.set_sessions(outcome.sessions);
-                if matches!(self.state.focus, state::FocusRegion::Details) {
-                    self.refresh_preview();
-                }
+                self.refresh_preview();
 
                 if !outcome.skipped_sessions.is_empty() {
                     self.state.status = Some(state::StatusLine {

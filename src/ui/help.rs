@@ -10,7 +10,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
     let focused = state.focus_label() == "help";
     let mut help = String::new();
     help.push_str(
-        "Nav: Tab focus  Up/Down sessions  Left collapse  Right expand  Enter cycle window\n",
+        "Nav: Tab focus  Up/Down visible rows  Left collapse  Right expand  Enter cycle window\n",
     );
     help.push_str("CRUD: c create session  w create window  n rename  x close  a attach\n");
     help.push_str("Other: Space toggle  r refresh  q quit");
