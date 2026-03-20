@@ -30,8 +30,42 @@ pub struct StatusLine {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Modal {
-    Input { title: String, value: String },
-    Confirm { title: String, prompt: String },
+    Input {
+        title: String,
+        value: String,
+        action: InputAction,
+    },
+    Confirm {
+        title: String,
+        prompt: String,
+        action: ConfirmAction,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InputAction {
+    CreateSession,
+    CreateWindow {
+        session_name: String,
+    },
+    RenameSession {
+        session_name: String,
+    },
+    RenameWindow {
+        session_name: String,
+        window_index: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConfirmAction {
+    CloseSession {
+        session_name: String,
+    },
+    CloseWindow {
+        session_name: String,
+        window_index: String,
+    },
 }
 
 #[derive(Debug, Default)]
@@ -161,6 +195,55 @@ impl State {
             FocusRegion::Details => FocusRegion::Help,
             FocusRegion::Help | FocusRegion::Modal => FocusRegion::Tree,
         };
+    }
+
+    #[must_use]
+    pub fn selected_session_name(&self) -> Option<&str> {
+        self.selected_session_ref()
+            .map(|session| session.name.as_str())
+    }
+
+    #[must_use]
+    pub fn selected_window_index(&self) -> Option<&str> {
+        self.selected_window_ref()
+            .map(|window| window.index.as_str())
+    }
+
+    pub fn select_session_by_name(&mut self, session_name: &str) {
+        let Some(session_index) = self
+            .sessions
+            .iter()
+            .position(|session| session.name == session_name)
+        else {
+            return;
+        };
+
+        self.selected_session = Some(session_index);
+        self.selected_window = None;
+        self.sync_selection();
+    }
+
+    pub fn select_window_by_identity(&mut self, session_name: &str, window_index: &str) {
+        let Some((session_index, session)) = self
+            .sessions
+            .iter()
+            .enumerate()
+            .find(|(_, session)| session.name == session_name)
+        else {
+            return;
+        };
+
+        let Some(window_pos) = session
+            .windows
+            .iter()
+            .position(|window| window.index == window_index)
+        else {
+            return;
+        };
+
+        self.selected_session = Some(session_index);
+        self.selected_window = Some(window_pos);
+        self.sync_selection();
     }
 
     #[must_use]

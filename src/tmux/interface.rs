@@ -170,6 +170,69 @@ pub fn attach_to_session(session_name: &str) -> Result<()> {
     Ok(())
 }
 
+/// Attaches to a tmux session and selects a specific window.
+///
+/// # Errors
+/// Returns an error if tmux fails to switch/attach or select the target window.
+pub fn attach_to_window(session_name: &str, window_index: &str) -> Result<()> {
+    let window_target = format!("{session_name}:{window_index}");
+    let is_attached = env::var("TMUX").is_ok();
+
+    let status = if is_attached {
+        Command::new("tmux")
+            .args(["switch-client", "-t", session_name])
+            .args([";", "select-window", "-t", &window_target])
+            .status()
+            .context("Failed to switch to target window")?
+    } else {
+        Command::new("tmux")
+            .args(["attach-session", "-t", session_name])
+            .args([";", "select-window", "-t", &window_target])
+            .status()
+            .context("Failed to attach to target window")?
+    };
+
+    if !status.success() {
+        anyhow::bail!("tmux failed to attach/select window {window_target}");
+    }
+
+    Ok(())
+}
+
+/// Creates a detached tmux session.
+///
+/// # Errors
+/// Returns an error if `tmux new-session` fails.
+pub fn create_session(session_name: &str) -> Result<()> {
+    let status = Command::new("tmux")
+        .args(["new-session", "-d", "-s", session_name])
+        .status()
+        .context("Failed to create session")?;
+
+    if !status.success() {
+        anyhow::bail!("tmux failed to create session {session_name}");
+    }
+
+    Ok(())
+}
+
+/// Creates a new window in a target session.
+///
+/// # Errors
+/// Returns an error if `tmux new-window` fails.
+pub fn create_window(session_name: &str, window_name: &str) -> Result<()> {
+    let status = Command::new("tmux")
+        .args(["new-window", "-t", session_name, "-n", window_name])
+        .status()
+        .context("Failed to create window")?;
+
+    if !status.success() {
+        anyhow::bail!("tmux failed to create window {window_name} in {session_name}");
+    }
+
+    Ok(())
+}
+
 /// Renames a tmux session.
 ///
 /// # Errors
@@ -181,6 +244,26 @@ pub fn rename_session(session_name: &str, new_name: &str) -> Result<()> {
         .arg(new_name)
         .status()
         .context("Failed to rename session")?;
+
+    Ok(())
+}
+
+/// Renames a tmux window.
+///
+/// # Errors
+/// Returns an error if `tmux rename-window` fails.
+pub fn rename_window(session_name: &str, window_index: &str, new_name: &str) -> Result<()> {
+    let window_target = format!("{session_name}:{window_index}");
+    let status = Command::new("tmux")
+        .arg("rename-window")
+        .args(["-t", &window_target])
+        .arg(new_name)
+        .status()
+        .context("Failed to rename window")?;
+
+    if !status.success() {
+        anyhow::bail!("tmux failed to rename window {window_target}");
+    }
 
     Ok(())
 }
@@ -198,6 +281,25 @@ pub fn close_session(session_name: &str) -> Result<()> {
         .args(["-t", session_name])
         .status()
         .context("Failed to kill session")?;
+
+    Ok(())
+}
+
+/// Closes a tmux window by session and index.
+///
+/// # Errors
+/// Returns an error if `tmux kill-window` fails.
+pub fn close_window(session_name: &str, window_index: &str) -> Result<()> {
+    let window_target = format!("{session_name}:{window_index}");
+    let status = Command::new("tmux")
+        .arg("kill-window")
+        .args(["-t", &window_target])
+        .status()
+        .context("Failed to kill window")?;
+
+    if !status.success() {
+        anyhow::bail!("tmux failed to kill window {window_target}");
+    }
 
     Ok(())
 }
