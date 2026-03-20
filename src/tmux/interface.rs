@@ -12,9 +12,9 @@ use anyhow::{Context, Result};
 use shell_escape::escape;
 use tempfile::NamedTempFile;
 
-use crate::core::tmux::session::*;
+use crate::tmux::session::*;
 
-const TMUX_FIELD_SEPARATOR: &str = " ";
+const TMUX_FIELD_SEPARATOR: &str = "\x1f";
 const TMUX_LINE_SEPARATOR: &str = "\n";
 
 /// Retrives a [`Session`] by name, or infer the current session if a name is
@@ -70,6 +70,10 @@ pub fn get_session(session_name: Option<&str>) -> Result<Session> {
 /// Returns an error if any tmux command fails, or if writing the temporary
 /// restoration script fails.
 pub fn restore_session(session: &Session) -> Result<()> {
+    if session.windows.is_empty() {
+        anyhow::bail!("Cannot restore session without windows");
+    }
+
     let temp_session_name = format!("tsman-temp-{}", std::process::id());
 
     let mut script_str = String::new();
@@ -241,9 +245,9 @@ pub fn list_active_sessions() -> Result<Vec<String>> {
         .context("Failed to convert tmux output to UTF-8 string")?;
 
     let parts: Vec<String> = string_output
-        .trim()
         .split(TMUX_LINE_SEPARATOR)
-        .map(|s| s.to_string())
+        .filter(|line| !line.trim().is_empty())
+        .map(|s| s.trim().to_string())
         .collect();
 
     Ok(parts)
@@ -285,7 +289,10 @@ fn get_windows(session_name: &str) -> Result<Vec<Window>> {
     let output = Command::new("tmux")
         .arg("list-windows")
         .args(["-t", session_name])
-        .args(["-F", "#{window_index} #{window_name} #{window_layout}"])
+        .args([
+            "-F",
+            "#{window_index}\x1f#{window_name}\x1f#{window_layout}",
+        ])
         .output()
         .context("Failed to execute 'tmux list-windows'")?;
 
@@ -293,8 +300,8 @@ fn get_windows(session_name: &str) -> Result<Vec<Window>> {
         .context("Failed to convert tmux output to UTF-8 string")?;
 
     string_output
-        .trim()
         .split(TMUX_LINE_SEPARATOR)
+        .filter(|window| !window.trim().is_empty())
         .map(|window| parse_window_string(window, session_name))
         .collect()
 }
@@ -307,7 +314,7 @@ fn get_windows(session_name: &str) -> Result<Vec<Window>> {
 /// # Errors
 /// Returns an error if the format is invalid or if panes cannot be retrieved.
 fn parse_window_string(window: &str, session_name: &str) -> Result<Window> {
-    let mut parts = window.split(" ");
+    let mut parts = window.splitn(3, TMUX_FIELD_SEPARATOR);
 
     match (parts.next(), parts.next(), parts.next()) {
         (Some(index), Some(name), Some(layout)) => {
@@ -342,7 +349,10 @@ fn get_panes(window_target: &str) -> Result<Vec<Pane>> {
     let output = Command::new("tmux")
         .arg("list-panes")
         .args(["-t", window_target])
-        .args(["-F", "#{pane_index} #{pane_pid} #{pane_current_path}"])
+        .args([
+            "-F",
+            "#{pane_index}\x1f#{pane_pid}\x1f#{pane_current_path}",
+        ])
         .output()
         .with_context(|| {
             format!("Failed to execute 'tmux list-panes' for window {window_target}",)
@@ -352,8 +362,8 @@ fn get_panes(window_target: &str) -> Result<Vec<Pane>> {
         .context("Failed to convert tmux output to UTF-8 string")?;
 
     string_output
-        .trim()
         .split(TMUX_LINE_SEPARATOR)
+        .filter(|pane| !pane.trim().is_empty())
         .map(parse_pane_string)
         .collect()
 }
@@ -369,7 +379,7 @@ fn get_panes(window_target: &str) -> Result<Vec<Pane>> {
 /// # Errors
 /// Returns an error if parsing fails or process lookup fails.
 fn parse_pane_string(pane: &str) -> Result<Pane> {
-    let mut parts = pane.split(TMUX_FIELD_SEPARATOR);
+    let mut parts = pane.splitn(3, TMUX_FIELD_SEPARATOR);
 
     match (parts.next(), parts.next(), parts.next()) {
         (Some(index), Some(pid), Some(work_dir_str)) => {
@@ -454,6 +464,10 @@ fn get_window_config_cmd(
     session: &Session,
     window: &Window,
 ) -> Result<String> {
+    if window.panes.is_empty() {
+        anyhow::bail!("Cannot restore window '{}' without panes", window.name);
+    }
+
     let window_target = format!("{}:{}", temp_session_name, window.index);
 
     let mut cmd = String::new();

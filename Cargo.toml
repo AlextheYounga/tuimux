@@ -4,3 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1"
+crossterm = "0.29"
+ratatui = "0.29"
+serde = { version = "1", features = ["derive"] }
+shell-escape = "0.1"
+tempfile = "3"

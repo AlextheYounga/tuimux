@@ -114,6 +114,10 @@ impl Session {
     /// This method creates a tree-like view of the tmux session, showing the
     /// hierarchy from session → windows → panes.
     pub fn get_preview(&self) -> String {
+        if self.windows.is_empty() {
+            return format!("{}:\n ╚══ (no windows)\n", self.name);
+        }
+
         let mut preview = format!("{}:\n", self.name);
 
         let mut window_idx = 0;
