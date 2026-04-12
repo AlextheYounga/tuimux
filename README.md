@@ -44,17 +44,16 @@ Navigation:
 - `Down` / `j`: move selection down through visible rows
 - `Left` / `h`: collapse selected session
 - `Right` / `l`: expand selected session
-- `Enter`: cycle selected window for the selected session
+- `Enter`: attach to selected session/window
 - `Space`: toggle expand/collapse
 - `r`: refresh sessions
 
 Actions:
 - `a`: attach to selected session/window
-- `c`: create session
+- `s`: create session
 - `w`: create window
 - `n`: rename selected session/window
 - `x`: close selected session/window (with confirmation)
 
 Quit:
 - `q`, `Esc`, or `Ctrl-C`
-

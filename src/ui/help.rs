@@ -15,11 +15,11 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
     let lines = vec![
         Line::from(vec![
             Span::styled("NAV ", nav_style),
-            Span::raw("Up/Down rows  Left collapse  Right expand  Enter cycle window"),
+            Span::raw("Up/Down rows  Left collapse  Right expand  Enter attach"),
         ]),
         Line::from(vec![
             Span::styled("CRUD ", crud_style),
-            Span::raw("c session  w window  n rename  x close  a attach"),
+            Span::raw("s session  w window  n rename  x close  a attach"),
         ]),
         Line::from(vec![
             Span::styled("OTHER ", other_style),
