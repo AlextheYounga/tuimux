@@ -1,6 +1,6 @@
 [package]
 name = "tuimux"
-version = "0.1.1"
+version = "0.1.2"
 authors=["Alex Younger <thealexyounger@proton.me>"]
 description="A fast Rust TUI for everything tmux, with full CRUD support."
 license="MIT"
