@@ -247,8 +247,9 @@ pub fn create_session(session_name: &str) -> Result<()> {
 /// # Errors
 /// Returns an error if `tmux new-window` fails.
 pub fn create_window(session_name: &str, window_name: &str) -> Result<()> {
+    let target_session = format!("{session_name}:");
     let status = Command::new("tmux")
-        .args(["new-window", "-t", session_name, "-n", window_name])
+        .args(["new-window", "-t", &target_session, "-n", window_name])
         .status()
         .context("Failed to create window")?;
 
