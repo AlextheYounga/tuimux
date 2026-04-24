@@ -3,9 +3,7 @@ use ratatui::style::{Color, Modifier, Style};
 #[must_use]
 pub fn panel_border(focused: bool) -> Style {
     if focused {
-        Style::default()
-            .fg(Color::Green)
-            .add_modifier(Modifier::BOLD)
+        Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::DarkGray)
     }
@@ -14,9 +12,7 @@ pub fn panel_border(focused: bool) -> Style {
 #[must_use]
 pub fn panel_title(focused: bool) -> Style {
     if focused {
-        Style::default()
-            .fg(Color::LightGreen)
-            .add_modifier(Modifier::BOLD)
+        Style::default().fg(Color::LightGreen).add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::Green)
     }

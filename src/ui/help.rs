@@ -21,10 +21,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
             Span::styled("CRUD ", crud_style),
             Span::raw("s session  w window  n rename  x close  a attach"),
         ]),
-        Line::from(vec![
-            Span::styled("OTHER ", other_style),
-            Span::raw("Space toggle  r refresh  q quit"),
-        ]),
+        Line::from(vec![Span::styled("OTHER ", other_style), Span::raw("Space toggle  r refresh  q quit")]),
         build_status_line(state),
     ];
 
@@ -42,20 +39,10 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
 fn build_status_line(state: &State) -> Line<'static> {
     if let Some(status) = &state.status {
         let label = if status.is_error { "ERROR" } else { "OK" };
-        let style = if status.is_error {
-            theme::error_status()
-        } else {
-            theme::ok_status()
-        };
+        let style = if status.is_error { theme::error_status() } else { theme::ok_status() };
 
-        return Line::from(vec![
-            Span::styled(format!("STATUS {label}: "), style),
-            Span::raw(status.message.clone()),
-        ]);
+        return Line::from(vec![Span::styled(format!("STATUS {label}: "), style), Span::raw(status.message.clone())]);
     }
 
-    Line::from(vec![
-        Span::styled("STATUS OK: ", theme::ok_status()),
-        Span::raw("ready"),
-    ])
+    Line::from(vec![Span::styled("STATUS OK: ", theme::ok_status()), Span::raw("ready")])
 }

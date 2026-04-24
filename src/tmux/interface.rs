@@ -33,23 +33,14 @@ const TMUX_LINE_SEPARATOR: &str = "\n";
 /// - The session cannot be determined/there is no attached session.
 /// - Any tmux command used to gather details fails
 pub fn get_session(session_name: Option<&str>) -> Result<Session> {
-    let name = if let Some(name) = session_name {
-        name.to_string()
-    } else {
-        get_session_name()?
-    };
+    let name = if let Some(name) = session_name { name.to_string() } else { get_session_name()? };
 
-    let path = get_session_path(&name)
-        .with_context(|| format!("Failed to get working directory for session '{name}'"))?;
+    let path =
+        get_session_path(&name).with_context(|| format!("Failed to get working directory for session '{name}'"))?;
 
-    let windows = get_windows(&name)
-        .with_context(|| format!("Failed to get windows for session '{name}'"))?;
+    let windows = get_windows(&name).with_context(|| format!("Failed to get windows for session '{name}'"))?;
 
-    Ok(Session {
-        name,
-        work_dir: path,
-        windows,
-    })
+    Ok(Session { name, work_dir: path, windows })
 }
 
 /// Restores a tmux session from a [`Session`] struct.
@@ -81,12 +72,7 @@ pub fn restore_session(session: &Session) -> Result<()> {
 
     let mut script_str = String::new();
 
-    writeln!(
-        script_str,
-        "tmux new-session -d -s {} -c {}",
-        temp_session_name,
-        escape(Cow::from(&session.work_dir))
-    )?;
+    writeln!(script_str, "tmux new-session -d -s {} -c {}", temp_session_name, escape(Cow::from(&session.work_dir)))?;
 
     let first_window = &session.windows[0];
 
@@ -104,20 +90,13 @@ pub fn restore_session(session: &Session) -> Result<()> {
     }
 
     // this helps avoid naming conflicts inside tmux
-    writeln!(
-        script_str,
-        "tmux rename-session -t {} {}",
-        temp_session_name, session.name
-    )?;
+    writeln!(script_str, "tmux rename-session -t {} {}", temp_session_name, session.name)?;
 
     let script = NamedTempFile::new()?;
 
     write(script.path(), script_str)?;
 
-    Command::new("sh")
-        .arg(script.path())
-        .status()
-        .context("Failed to reconstruct session")?;
+    Command::new("sh").arg(script.path()).status().context("Failed to reconstruct session")?;
 
     attach_to_session(&session.name)
 }
@@ -157,17 +136,9 @@ pub fn is_active_session(session_name: &str) -> Result<bool> {
 /// Returns an error if the tmux attach/switch command fails.
 pub fn attach_to_session(session_name: &str) -> Result<()> {
     let is_attached = env::var("TMUX").is_ok();
-    let attach_cmd = if is_attached {
-        "switch-client"
-    } else {
-        "attach-session"
-    };
+    let attach_cmd = if is_attached { "switch-client" } else { "attach-session" };
 
-    Command::new("tmux")
-        .arg(attach_cmd)
-        .args(["-t", session_name])
-        .status()
-        .context("Failed to attach session")?;
+    Command::new("tmux").arg(attach_cmd).args(["-t", session_name]).status().context("Failed to attach session")?;
 
     Ok(())
 }
@@ -227,8 +198,7 @@ pub fn capture_preview(session_name: &str, window_index: Option<&str>) -> Result
         anyhow::bail!("tmux capture-pane failed for {pane_target}: {stderr}");
     }
 
-    let output = String::from_utf8(output.stdout)
-        .context("Failed to convert tmux capture-pane output to UTF-8")?;
+    let output = String::from_utf8(output.stdout).context("Failed to convert tmux capture-pane output to UTF-8")?;
 
     Ok(output.trim_end().to_string())
 }
@@ -244,8 +214,7 @@ fn resolve_preview_pane(target: &str) -> Result<String> {
         anyhow::bail!("tmux list-panes failed for {target}: {stderr}");
     }
 
-    let output = String::from_utf8(output.stdout)
-        .context("Failed to convert tmux list-panes output to UTF-8")?;
+    let output = String::from_utf8(output.stdout).context("Failed to convert tmux list-panes output to UTF-8")?;
 
     let pane_id = output
         .lines()
@@ -333,11 +302,7 @@ pub fn rename_window(session_name: &str, window_index: &str, new_name: &str) -> 
 /// # Errors
 /// Returns an error if `tmux kill-session` fails.
 pub fn close_session(session_name: &str) -> Result<()> {
-    Command::new("tmux")
-        .arg("kill-session")
-        .args(["-t", session_name])
-        .status()
-        .context("Failed to kill session")?;
+    Command::new("tmux").arg("kill-session").args(["-t", session_name]).status().context("Failed to kill session")?;
 
     Ok(())
 }
@@ -376,8 +341,7 @@ pub fn get_session_name() -> Result<String> {
         .output()
         .context("Failed to execute 'tmux display-message'")?;
 
-    let string_output = String::from_utf8(output.stdout)
-        .context("Failed to convert tmux output to UTF-8 string")?;
+    let string_output = String::from_utf8(output.stdout).context("Failed to convert tmux output to UTF-8 string")?;
 
     Ok(string_output.trim().to_string())
 }
@@ -408,8 +372,7 @@ pub fn list_active_sessions() -> Result<Vec<String>> {
         anyhow::bail!("tmux list-sessions failed: {stderr}");
     }
 
-    let string_output = String::from_utf8(output.stdout)
-        .context("Failed to convert tmux output to UTF-8 string")?;
+    let string_output = String::from_utf8(output.stdout).context("Failed to convert tmux output to UTF-8 string")?;
 
     let parts: Vec<String> = string_output
         .split(TMUX_LINE_SEPARATOR)
@@ -436,8 +399,7 @@ fn get_session_path(session_name: &str) -> Result<String> {
         .output()
         .context("Failed to execute 'tmux display-message'")?;
 
-    let string_output = String::from_utf8(output.stdout)
-        .context("Failed to convert tmux output to UTF-8 string")?;
+    let string_output = String::from_utf8(output.stdout).context("Failed to convert tmux output to UTF-8 string")?;
 
     Ok(string_output.trim().to_string())
 }
@@ -456,15 +418,11 @@ fn get_windows(session_name: &str) -> Result<Vec<Window>> {
     let output = Command::new("tmux")
         .arg("list-windows")
         .args(["-t", session_name])
-        .args([
-            "-F",
-            "#{window_index}\x1f#{window_name}\x1f#{window_layout}",
-        ])
+        .args(["-F", "#{window_index}\x1f#{window_name}\x1f#{window_layout}"])
         .output()
         .context("Failed to execute 'tmux list-windows'")?;
 
-    let string_output = String::from_utf8(output.stdout)
-        .context("Failed to convert tmux output to UTF-8 string")?;
+    let string_output = String::from_utf8(output.stdout).context("Failed to convert tmux output to UTF-8 string")?;
 
     string_output
         .split(TMUX_LINE_SEPARATOR)
@@ -489,12 +447,7 @@ fn parse_window_string(window: &str, session_name: &str) -> Result<Window> {
             let window_target = format!("{session_name}:{index}");
             let panes = get_panes(&window_target)?;
 
-            Ok(Window {
-                index,
-                name: name.to_string(),
-                layout: layout.to_string(),
-                panes,
-            })
+            Ok(Window { index, name: name.to_string(), layout: layout.to_string(), panes })
         }
         _ => {
             anyhow::bail!("Failed to parse window string: {window}")
@@ -518,18 +471,11 @@ fn get_panes(window_target: &str) -> Result<Vec<Pane>> {
         .args(["-t", window_target])
         .args(["-F", "#{pane_index}\x1f#{pane_pid}\x1f#{pane_current_path}"])
         .output()
-        .with_context(|| {
-            format!("Failed to execute 'tmux list-panes' for window {window_target}",)
-        })?;
+        .with_context(|| format!("Failed to execute 'tmux list-panes' for window {window_target}",))?;
 
-    let string_output = String::from_utf8(output.stdout)
-        .context("Failed to convert tmux output to UTF-8 string")?;
+    let string_output = String::from_utf8(output.stdout).context("Failed to convert tmux output to UTF-8 string")?;
 
-    string_output
-        .split(TMUX_LINE_SEPARATOR)
-        .filter(|pane| !pane.trim().is_empty())
-        .map(parse_pane_string)
-        .collect()
+    string_output.split(TMUX_LINE_SEPARATOR).filter(|pane| !pane.trim().is_empty()).map(parse_pane_string).collect()
 }
 
 /// Parses a pane information string into a [`Pane`] struct.
@@ -554,11 +500,7 @@ fn parse_pane_string(pane: &str) -> Result<Pane> {
                 _ => None,
             };
 
-            Ok(Pane {
-                index: index.to_string(),
-                current_command,
-                work_dir: work_dir_str.to_string(),
-            })
+            Ok(Pane { index: index.to_string(), current_command, work_dir: work_dir_str.to_string() })
         }
         _ => anyhow::bail!("Failed to parse pane string: {pane}"),
     }
@@ -623,11 +565,7 @@ fn get_process_children(shell_pid: &str) -> Result<Vec<(u32, String)>> {
 ///
 /// # Errors
 /// Returns an error if escaping paths or commands fails.
-fn get_window_config_cmd(
-    temp_session_name: &str,
-    session: &Session,
-    window: &Window,
-) -> Result<String> {
+fn get_window_config_cmd(temp_session_name: &str, session: &Session, window: &Window) -> Result<String> {
     if window.panes.is_empty() {
         anyhow::bail!("Cannot restore window '{}' without panes", window.name);
     }
@@ -636,27 +574,13 @@ fn get_window_config_cmd(
 
     let mut cmd = String::new();
 
-    writeln!(
-        cmd,
-        "tmux rename-window -t {} {}",
-        window_target, window.name
-    )?;
+    writeln!(cmd, "tmux rename-window -t {} {}", window_target, window.name)?;
 
     for _ in window.panes.iter().skip(1) {
-        writeln!(
-            cmd,
-            "tmux split-window -d -t {} -c {}",
-            window_target,
-            escape(Cow::from(&session.work_dir))
-        )?;
+        writeln!(cmd, "tmux split-window -d -t {} -c {}", window_target, escape(Cow::from(&session.work_dir)))?;
     }
 
-    writeln!(
-        cmd,
-        "tmux select-layout -t {} {}",
-        window_target,
-        escape(Cow::from(&window.layout))
-    )?;
+    writeln!(cmd, "tmux select-layout -t {} {}", window_target, escape(Cow::from(&window.layout)))?;
 
     for pane in &window.panes {
         let pane_target = format!("{}.{}", window_target, pane.index);
@@ -671,12 +595,7 @@ fn get_window_config_cmd(
         }
 
         if let Some(pane_cmd) = &pane.current_command {
-            writeln!(
-                cmd,
-                "tmux send-keys -t {} {} C-m",
-                pane_target,
-                escape(pane_cmd.into())
-            )?;
+            writeln!(cmd, "tmux send-keys -t {} {} C-m", pane_target, escape(pane_cmd.into()))?;
         }
     }
 

@@ -15,8 +15,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
         for (session_index, session) in state.sessions.iter().enumerate() {
             let expanded = state.expanded_sessions.contains(&session.name);
             let fold = if expanded { "[-]" } else { "[+]" };
-            let is_selected_session =
-                state.selected_session == Some(session_index) && state.selected_window.is_none();
+            let is_selected_session = state.selected_session == Some(session_index) && state.selected_window.is_none();
             let marker = if is_selected_session { ">" } else { " " };
             let mut line = Line::from(format!("{marker} {fold} {}", session.name));
             if is_selected_session {
@@ -29,8 +28,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
             }
 
             for (window_index, window) in session.windows.iter().enumerate() {
-                let is_selected_window = state.selected_session == Some(session_index)
-                    && state.selected_window == Some(window_index);
+                let is_selected_window =
+                    state.selected_session == Some(session_index) && state.selected_window == Some(window_index);
                 let marker = if is_selected_window { "*" } else { "-" };
                 let mut line = Line::from(format!("  {marker} [{}] {}", window.index, window.name));
                 if is_selected_window {
@@ -42,11 +41,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
     }
 
     let focused = state.focus_label() == "tree";
-    let title = if focused {
-        "Sessions (focus)"
-    } else {
-        "Sessions"
-    };
+    let title = if focused { "Sessions (focus)" } else { "Sessions" };
 
     let tree = Paragraph::new(lines).block(
         Block::default()

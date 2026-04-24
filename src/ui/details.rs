@@ -38,28 +38,17 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
             .padding(Padding::new(1, 1, 0, 0)),
     );
 
-    let preview_title = if focused {
-        "Preview (live, 1s)"
-    } else {
-        "Preview"
-    };
-    let preview_style = if state.preview_is_error {
-        theme::error_status()
-    } else {
-        theme::info_text()
-    };
+    let preview_title = if focused { "Preview (live, 1s)" } else { "Preview" };
+    let preview_style = if state.preview_is_error { theme::error_status() } else { theme::info_text() };
 
-    let preview_widget = Paragraph::new(state.preview.as_str())
-        .style(preview_style)
-        .wrap(Wrap { trim: false })
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(theme::panel_border(focused))
-                .title(preview_title)
-                .title_style(theme::panel_title(focused))
-                .padding(Padding::new(1, 1, 0, 0)),
-        );
+    let preview_widget = Paragraph::new(state.preview.as_str()).style(preview_style).wrap(Wrap { trim: false }).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(theme::panel_border(focused))
+            .title(preview_title)
+            .title_style(theme::panel_title(focused))
+            .padding(Padding::new(1, 1, 0, 0)),
+    );
 
     frame.render_widget(details_widget, sections[0]);
     frame.render_widget(preview_widget, sections[1]);

@@ -10,11 +10,8 @@ pub struct Regions {
 
 #[must_use]
 pub fn split(area: Rect) -> Regions {
-    let canvas = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(1)])
-        .margin(1)
-        .split(area)[0];
+    let canvas =
+        Layout::default().direction(Direction::Vertical).constraints([Constraint::Min(1)]).margin(1).split(area)[0];
 
     let vertical = Layout::default()
         .direction(Direction::Vertical)
@@ -29,12 +26,7 @@ pub fn split(area: Rect) -> Regions {
         .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
         .split(top);
 
-    Regions {
-        left: horizontal[0],
-        right: horizontal[1],
-        bottom,
-        overlay: centered_rect(60, 30, canvas),
-    }
+    Regions { left: horizontal[0], right: horizontal[1], bottom, overlay: centered_rect(60, 30, canvas) }
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {

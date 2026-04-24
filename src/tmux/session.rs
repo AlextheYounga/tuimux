@@ -94,21 +94,11 @@ impl Window {
 
         let mut pane_idx = 0;
         while pane_idx < self.panes.len() - 1 {
-            let _ = writeln!(
-                preview,
-                " {}  ╠═ {}",
-                connector,
-                self.panes[pane_idx].get_preview(true)
-            );
+            let _ = writeln!(preview, " {}  ╠═ {}", connector, self.panes[pane_idx].get_preview(true));
             pane_idx += 1;
         }
 
-        let _ = writeln!(
-            preview,
-            " {}  ╚═ {}",
-            connector,
-            self.panes[pane_idx].get_preview(true)
-        );
+        let _ = writeln!(preview, " {}  ╚═ {}", connector, self.panes[pane_idx].get_preview(true));
 
         preview
     }
@@ -132,21 +122,12 @@ impl Session {
             let window = &self.windows[window_idx];
             let end_connector = if window.panes.len() > 1 { "╦═" } else { "" };
 
-            let _ = write!(
-                preview,
-                " ╠══{} {}",
-                end_connector,
-                window.get_preview(true)
-            );
+            let _ = write!(preview, " ╠══{} {}", end_connector, window.get_preview(true));
             window_idx += 1;
         }
 
         let last_window = &self.windows[window_idx];
-        let end_connector = if last_window.panes.len() > 1 {
-            "╦═"
-        } else {
-            ""
-        };
+        let end_connector = if last_window.panes.len() > 1 { "╦═" } else { "" };
 
         let _ = write!(
             preview,

@@ -4,9 +4,7 @@ pub mod state;
 use anyhow::Result;
 use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
-use crossterm::terminal::{
-    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
-};
+use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use std::io::{self, Stdout};
@@ -17,9 +15,8 @@ use std::time::{Duration, Instant};
 use crate::app::actions::Action;
 use crate::app::state::{ConfirmAction, InputAction, Modal, State};
 use crate::tmux::interface::{
-    attach_to_session, attach_to_window, capture_preview, close_session, close_window,
-    create_session, create_window, get_session, list_active_sessions, rename_session,
-    rename_window,
+    attach_to_session, attach_to_window, capture_preview, close_session, close_window, create_session, create_window,
+    get_session, list_active_sessions, rename_session, rename_window,
 };
 use crate::tmux::session::Session;
 use crate::ui;
@@ -46,11 +43,7 @@ struct PreviewRuntime {
 
 #[derive(Debug)]
 enum PreviewRequest {
-    Fetch {
-        seq: u64,
-        session_name: String,
-        window_index: Option<String>,
-    },
+    Fetch { seq: u64, session_name: String, window_index: Option<String> },
 }
 
 #[derive(Debug)]
@@ -197,12 +190,7 @@ impl App {
     }
 
     fn handle_input_modal_key(&mut self, modal: Modal, code: KeyCode) {
-        let Modal::Input {
-            title,
-            mut value,
-            action,
-        } = modal
-        else {
+        let Modal::Input { title, mut value, action } = modal else {
             return;
         };
 
@@ -212,11 +200,7 @@ impl App {
             }
             KeyCode::Backspace => {
                 value.pop();
-                self.state.modal = Some(Modal::Input {
-                    title,
-                    value,
-                    action,
-                });
+                self.state.modal = Some(Modal::Input { title, value, action });
             }
             KeyCode::Enter => {
                 self.state.modal = None;
@@ -224,29 +208,16 @@ impl App {
             }
             KeyCode::Char(character) => {
                 value.push(character);
-                self.state.modal = Some(Modal::Input {
-                    title,
-                    value,
-                    action,
-                });
+                self.state.modal = Some(Modal::Input { title, value, action });
             }
             _ => {
-                self.state.modal = Some(Modal::Input {
-                    title,
-                    value,
-                    action,
-                });
+                self.state.modal = Some(Modal::Input { title, value, action });
             }
         }
     }
 
     fn handle_confirm_modal_key(&mut self, modal: Modal, code: KeyCode) {
-        let Modal::Confirm {
-            title,
-            prompt,
-            action,
-        } = modal
-        else {
+        let Modal::Confirm { title, prompt, action } = modal else {
             return;
         };
 
@@ -259,11 +230,7 @@ impl App {
                 self.submit_confirm_action(action);
             }
             _ => {
-                self.state.modal = Some(Modal::Confirm {
-                    title,
-                    prompt,
-                    action,
-                });
+                self.state.modal = Some(Modal::Confirm { title, prompt, action });
             }
         }
     }
@@ -286,9 +253,7 @@ impl App {
                 self.state.modal = Some(Modal::Input {
                     title: format!("Create window in {session_name}"),
                     value: String::new(),
-                    action: InputAction::CreateWindow {
-                        session_name: session_name.to_string(),
-                    },
+                    action: InputAction::CreateWindow { session_name: session_name.to_string() },
                 });
             }
             Action::Rename => self.open_rename_modal(),
@@ -344,9 +309,7 @@ impl App {
         self.state.modal = Some(Modal::Input {
             title: format!("Rename session {session_name}"),
             value: String::new(),
-            action: InputAction::RenameSession {
-                session_name: session_name.to_string(),
-            },
+            action: InputAction::RenameSession { session_name: session_name.to_string() },
         });
     }
 
@@ -376,9 +339,7 @@ impl App {
         self.state.modal = Some(Modal::Confirm {
             title: format!("Close session {session_name}"),
             prompt: String::from("Press y/Enter to confirm, n/Esc to cancel"),
-            action: ConfirmAction::CloseSession {
-                session_name: session_name.to_string(),
-            },
+            action: ConfirmAction::CloseSession { session_name: session_name.to_string() },
         });
     }
 
@@ -416,15 +377,11 @@ impl App {
                 }
                 result
             }
-            InputAction::RenameWindow {
-                session_name,
-                window_index,
-            } => {
+            InputAction::RenameWindow { session_name, window_index } => {
                 let result = rename_window(&session_name, &window_index, value);
                 if result.is_ok() {
                     self.refresh_sessions();
-                    self.state
-                        .select_window_by_identity(&session_name, &window_index);
+                    self.state.select_window_by_identity(&session_name, &window_index);
                     self.set_status("Window renamed");
                 }
                 result
@@ -446,10 +403,7 @@ impl App {
                 }
                 result
             }
-            ConfirmAction::CloseWindow {
-                session_name,
-                window_index,
-            } => {
+            ConfirmAction::CloseWindow { session_name, window_index } => {
                 let result = close_window(&session_name, &window_index);
                 if result.is_ok() {
                     self.refresh_sessions();
@@ -466,17 +420,11 @@ impl App {
     }
 
     fn set_status(&mut self, message: &str) {
-        self.state.status = Some(state::StatusLine {
-            message: message.to_string(),
-            is_error: false,
-        });
+        self.state.status = Some(state::StatusLine { message: message.to_string(), is_error: false });
     }
 
     fn set_error_status(&mut self, message: &str) {
-        self.state.status = Some(state::StatusLine {
-            message: message.to_string(),
-            is_error: true,
-        });
+        self.state.status = Some(state::StatusLine { message: message.to_string(), is_error: true });
     }
 
     fn action_from_key(code: KeyCode, modifiers: KeyModifiers) -> Option<Action> {
@@ -511,29 +459,20 @@ impl App {
 
                 if !outcome.skipped_sessions.is_empty() {
                     self.state.status = Some(state::StatusLine {
-                        message: format!(
-                            "Loaded {count} sessions, skipped {}",
-                            outcome.skipped_sessions.len()
-                        ),
+                        message: format!("Loaded {count} sessions, skipped {}", outcome.skipped_sessions.len()),
                         is_error: true,
                     });
                 } else if count == 0 {
-                    self.state.status = Some(state::StatusLine {
-                        message: String::from("No active tmux sessions"),
-                        is_error: false,
-                    });
+                    self.state.status =
+                        Some(state::StatusLine { message: String::from("No active tmux sessions"), is_error: false });
                 } else {
-                    self.state.status = Some(state::StatusLine {
-                        message: format!("Loaded {count} sessions"),
-                        is_error: false,
-                    });
+                    self.state.status =
+                        Some(state::StatusLine { message: format!("Loaded {count} sessions"), is_error: false });
                 }
             }
             Err(error) => {
-                self.state.status = Some(state::StatusLine {
-                    message: format!("Refresh failed: {error}"),
-                    is_error: true,
-                });
+                self.state.status =
+                    Some(state::StatusLine { message: format!("Refresh failed: {error}"), is_error: true });
             }
         }
     }
@@ -553,27 +492,17 @@ impl App {
                     }
                 }
 
-                let PreviewRequest::Fetch {
-                    seq,
-                    session_name,
-                    window_index,
-                } = latest;
+                let PreviewRequest::Fetch { seq, session_name, window_index } = latest;
 
                 let result = match capture_preview(&session_name, window_index.as_deref()) {
                     Ok(output) => PreviewResult {
                         seq,
-                        output: if output.trim().is_empty() {
-                            String::from("(empty output)")
-                        } else {
-                            output
-                        },
+                        output: if output.trim().is_empty() { String::from("(empty output)") } else { output },
                         is_error: false,
                     },
-                    Err(error) => PreviewResult {
-                        seq,
-                        output: format!("Preview unavailable: {error}"),
-                        is_error: true,
-                    },
+                    Err(error) => {
+                        PreviewResult { seq, output: format!("Preview unavailable: {error}"), is_error: true }
+                    }
                 };
 
                 if result_tx.send(result).is_err() {
@@ -582,12 +511,7 @@ impl App {
             }
         });
 
-        self.preview_runtime = Some(PreviewRuntime {
-            request_tx,
-            result_rx,
-            request_seq: 0,
-            latest_applied_seq: 0,
-        });
+        self.preview_runtime = Some(PreviewRuntime { request_tx, result_rx, request_seq: 0, latest_applied_seq: 0 });
     }
 
     fn request_preview_refresh(&mut self) {
@@ -630,10 +554,7 @@ impl App {
 
     fn fetch_sessions() -> Result<RefreshOutcome> {
         let names = list_active_sessions()?;
-        let mut outcome = RefreshOutcome {
-            sessions: Vec::with_capacity(names.len()),
-            skipped_sessions: Vec::new(),
-        };
+        let mut outcome = RefreshOutcome { sessions: Vec::with_capacity(names.len()), skipped_sessions: Vec::new() };
 
         for name in names {
             match get_session(Some(&name)) {

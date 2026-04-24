@@ -13,13 +13,8 @@ pub enum FocusRegion {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TreeSelection {
-    Session {
-        name: String,
-    },
-    Window {
-        session_name: String,
-        window_index: String,
-    },
+    Session { name: String },
+    Window { session_name: String, window_index: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,42 +25,22 @@ pub struct StatusLine {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Modal {
-    Input {
-        title: String,
-        value: String,
-        action: InputAction,
-    },
-    Confirm {
-        title: String,
-        prompt: String,
-        action: ConfirmAction,
-    },
+    Input { title: String, value: String, action: InputAction },
+    Confirm { title: String, prompt: String, action: ConfirmAction },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InputAction {
     CreateSession,
-    CreateWindow {
-        session_name: String,
-    },
-    RenameSession {
-        session_name: String,
-    },
-    RenameWindow {
-        session_name: String,
-        window_index: String,
-    },
+    CreateWindow { session_name: String },
+    RenameSession { session_name: String },
+    RenameWindow { session_name: String, window_index: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfirmAction {
-    CloseSession {
-        session_name: String,
-    },
-    CloseWindow {
-        session_name: String,
-        window_index: String,
-    },
+    CloseSession { session_name: String },
+    CloseWindow { session_name: String, window_index: String },
 }
 
 #[derive(Debug, Default)]
@@ -99,17 +74,13 @@ impl State {
         if previous_expanded.is_empty() {
             self.expanded_sessions.clear();
         } else {
-            self.expanded_sessions = self
-                .sessions
-                .iter()
-                .filter_map(|session| {
-                    if previous_expanded.contains(&session.name) {
-                        Some(session.name.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+            self.expanded_sessions =
+                self.sessions
+                    .iter()
+                    .filter_map(|session| {
+                        if previous_expanded.contains(&session.name) { Some(session.name.clone()) } else { None }
+                    })
+                    .collect();
         }
 
         if !self.restore_selection(previous_selection) {
@@ -222,22 +193,16 @@ impl State {
 
     #[must_use]
     pub fn selected_session_name(&self) -> Option<&str> {
-        self.selected_session_ref()
-            .map(|session| session.name.as_str())
+        self.selected_session_ref().map(|session| session.name.as_str())
     }
 
     #[must_use]
     pub fn selected_window_index(&self) -> Option<&str> {
-        self.selected_window_ref()
-            .map(|window| window.index.as_str())
+        self.selected_window_ref().map(|window| window.index.as_str())
     }
 
     pub fn select_session_by_name(&mut self, session_name: &str) {
-        let Some(session_index) = self
-            .sessions
-            .iter()
-            .position(|session| session.name == session_name)
-        else {
+        let Some(session_index) = self.sessions.iter().position(|session| session.name == session_name) else {
             return;
         };
 
@@ -247,20 +212,13 @@ impl State {
     }
 
     pub fn select_window_by_identity(&mut self, session_name: &str, window_index: &str) {
-        let Some((session_index, session)) = self
-            .sessions
-            .iter()
-            .enumerate()
-            .find(|(_, session)| session.name == session_name)
+        let Some((session_index, session)) =
+            self.sessions.iter().enumerate().find(|(_, session)| session.name == session_name)
         else {
             return;
         };
 
-        let Some(window_pos) = session
-            .windows
-            .iter()
-            .position(|window| window.index == window_index)
-        else {
+        let Some(window_pos) = session.windows.iter().position(|window| window.index == window_index) else {
             return;
         };
 
@@ -285,23 +243,14 @@ impl State {
         };
 
         match previous_selection {
-            TreeSelection::Window {
-                session_name,
-                window_index,
-            } => {
-                let Some((session_index, session)) = self
-                    .sessions
-                    .iter()
-                    .enumerate()
-                    .find(|(_, session)| session.name == session_name)
+            TreeSelection::Window { session_name, window_index } => {
+                let Some((session_index, session)) =
+                    self.sessions.iter().enumerate().find(|(_, session)| session.name == session_name)
                 else {
                     return false;
                 };
 
-                let Some(window_index_pos) = session
-                    .windows
-                    .iter()
-                    .position(|window| window.index == window_index)
+                let Some(window_index_pos) = session.windows.iter().position(|window| window.index == window_index)
                 else {
                     self.selected_session = Some(session_index);
                     self.selected_window = None;
@@ -315,11 +264,7 @@ impl State {
                 true
             }
             TreeSelection::Session { name } => {
-                let Some(session_index) = self
-                    .sessions
-                    .iter()
-                    .position(|session| session.name == name)
-                else {
+                let Some(session_index) = self.sessions.iter().position(|session| session.name == name) else {
                     return false;
                 };
 
@@ -335,20 +280,14 @@ impl State {
         let mut rows = Vec::new();
 
         for (session_index, session) in self.sessions.iter().enumerate() {
-            rows.push(TreeRow {
-                session_index,
-                window_index: None,
-            });
+            rows.push(TreeRow { session_index, window_index: None });
 
             if !self.expanded_sessions.contains(&session.name) {
                 continue;
             }
 
             for (window_index, _) in session.windows.iter().enumerate() {
-                rows.push(TreeRow {
-                    session_index,
-                    window_index: Some(window_index),
-                });
+                rows.push(TreeRow { session_index, window_index: Some(window_index) });
             }
         }
 
@@ -357,8 +296,7 @@ impl State {
 
     fn selected_row_index(&self, rows: &[TreeRow]) -> Option<usize> {
         rows.iter().position(|row| {
-            self.selected_session == Some(row.session_index)
-                && self.selected_window == row.window_index
+            self.selected_session == Some(row.session_index) && self.selected_window == row.window_index
         })
     }
 
@@ -385,9 +323,7 @@ impl State {
 
         if session.windows.is_empty() {
             self.selected_window = None;
-            self.selection = Some(TreeSelection::Session {
-                name: session.name.clone(),
-            });
+            self.selection = Some(TreeSelection::Session { name: session.name.clone() });
             return;
         }
 
@@ -403,15 +339,12 @@ impl State {
             self.selected_window = None;
         }
 
-        self.selection = Some(TreeSelection::Session {
-            name: session.name.clone(),
-        });
+        self.selection = Some(TreeSelection::Session { name: session.name.clone() });
     }
 
     #[must_use]
     pub fn selected_session_ref(&self) -> Option<&Session> {
-        self.selected_session
-            .and_then(|index| self.sessions.get(index))
+        self.selected_session.and_then(|index| self.sessions.get(index))
     }
 
     #[must_use]
