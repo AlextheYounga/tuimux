@@ -78,7 +78,11 @@ impl State {
                 self.sessions
                     .iter()
                     .filter_map(|session| {
-                        if previous_expanded.contains(&session.name) { Some(session.name.clone()) } else { None }
+                        if previous_expanded.contains(&session.name) {
+                            Some(session.name.clone())
+                        } else {
+                            None
+                        }
                     })
                     .collect();
         }
@@ -126,10 +130,7 @@ impl State {
             return;
         }
 
-        self.selected_window = match self.selected_window {
-            Some(index) => Some((index + 1) % session.windows.len()),
-            None => Some(0),
-        };
+        self.selected_window = Some(self.selected_window.map_or(0, |index| (index + 1) % session.windows.len()));
         self.sync_selection();
     }
 
