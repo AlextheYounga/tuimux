@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 
 use crate::app::App;
-use crate::app::backup;
+use crate::app::export;
 use crate::app::state::{ConfirmAction, Modal};
 use crate::tmux::interface::{
     create_session_with_path, create_window_with_path, get_session, rename_window, session_exists,
@@ -15,35 +15,8 @@ struct RestoreCounters {
 }
 
 impl App {
-    pub(super) fn export_sessions(&mut self) {
-        match backup::export_file_exists() {
-            Ok(true) => {
-                self.state.modal = Some(Modal::Confirm {
-                    title: String::from("Overwrite existing export file"),
-                    prompt: String::from("Press y/Enter to overwrite, n/Esc to cancel"),
-                    action: ConfirmAction::OverwriteSessionExport,
-                });
-                return;
-            }
-            Ok(false) => {}
-            Err(error) => {
-                self.set_error_status(&format!("Export failed: {error}"));
-                return;
-            }
-        }
-
-        self.perform_export();
-    }
-
-    pub(super) fn perform_export(&mut self) {
-        match backup::export_sessions(&self.state.sessions) {
-            Ok(path) => self.set_status(&format!("Exported sessions to {}", path.display())),
-            Err(error) => self.set_error_status(&format!("Export failed: {error}")),
-        }
-    }
-
     pub(super) fn restore_sessions(&mut self) {
-        let backup_file = match backup::import_sessions() {
+        let backup_file = match export::import_sessions() {
             Ok(file) => file,
             Err(error) => {
                 self.set_error_status(&format!("Restore failed: {error}"));
@@ -63,7 +36,7 @@ impl App {
     }
 
     pub(super) fn perform_restore_sessions(&mut self) {
-        let backup_file = match backup::import_sessions() {
+        let backup_file = match export::import_sessions() {
             Ok(file) => file,
             Err(error) => {
                 self.set_error_status(&format!("Restore failed: {error}"));
@@ -136,7 +109,7 @@ impl App {
         }
     }
 
-    fn restore_one_session(session_backup: &backup::SessionRecord, target_session_name: &str) -> Result<usize> {
+    fn restore_one_session(session_backup: &export::SessionRecord, target_session_name: &str) -> Result<usize> {
         if session_backup.windows.is_empty() {
             create_session_with_path(target_session_name, &session_backup.path)
                 .with_context(|| format!("session {target_session_name}: create failed"))?;

@@ -5,6 +5,8 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::app::App;
+use crate::app::state::{ConfirmAction, Modal};
 use crate::tmux::session::Session;
 
 const BACKUP_RELATIVE_PATH: &str = ".config/tuimux/tuimux-sessions.json";
@@ -71,7 +73,7 @@ pub fn sessions_file_path() -> Result<PathBuf> {
 ///
 /// # Errors
 /// Returns an error when `HOME` is not set.
-pub fn export_file_exists() -> Result<bool> {
+pub fn file_exists() -> Result<bool> {
     let path = sessions_file_path()?;
     Ok(path.exists())
 }
@@ -81,7 +83,7 @@ pub fn export_file_exists() -> Result<bool> {
 /// # Errors
 /// Returns an error when creating the backup directory, serializing payload,
 /// or writing the file fails.
-pub fn export_sessions(sessions: &[Session]) -> Result<PathBuf> {
+pub fn write_sessions(sessions: &[Session]) -> Result<PathBuf> {
     let path = sessions_file_path()?;
     let parent =
         path.parent().ok_or_else(|| anyhow::anyhow!("Backup path has no parent directory: {}", path.display()))?;
@@ -105,4 +107,33 @@ pub fn import_sessions() -> Result<SessionBackupFile> {
         fs::read_to_string(&path).with_context(|| format!("Failed to read backup file: {}", path.display()))?;
     let backup: SessionBackupFile = serde_json::from_str(&payload).context("Failed to parse backup JSON")?;
     Ok(backup)
+}
+
+impl App {
+    pub(super) fn export_sessions(&mut self) {
+        match file_exists() {
+            Ok(true) => {
+                self.state.modal = Some(Modal::Confirm {
+                    title: String::from("Overwrite existing export file"),
+                    prompt: String::from("Press y/Enter to overwrite, n/Esc to cancel"),
+                    action: ConfirmAction::OverwriteSessionExport,
+                });
+                return;
+            }
+            Ok(false) => {}
+            Err(error) => {
+                self.set_error_status(&format!("Export failed: {error}"));
+                return;
+            }
+        }
+
+        self.perform_export();
+    }
+
+    pub(super) fn perform_export(&mut self) {
+        match write_sessions(&self.state.sessions) {
+            Ok(path) => self.set_status(&format!("Exported sessions to {}", path.display())),
+            Err(error) => self.set_error_status(&format!("Export failed: {error}")),
+        }
+    }
 }
