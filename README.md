@@ -6,6 +6,7 @@ It gives you a fast dashboard to:
 - view sessions and nested windows in a tree
 - inspect session metadata and live pane output preview
 - create, attach, rename, and close sessions/windows from keybindings
+- export and restore session/window layouts
 
 ![Preview Image](docs/images/preview.png)
 
@@ -18,6 +19,7 @@ It gives you a fast dashboard to:
 - Green-themed Ratatui interface
 - Resilient refresh behavior (handles empty/no-server cases)
 - Async preview capture worker so scrolling/navigation stays responsive
+- Session export/restore to a local JSON backup file
 
 ## Requirements
 
@@ -54,6 +56,8 @@ Actions:
 - `w`: create window
 - `n`: rename selected session/window
 - `x`: close selected session/window (with confirmation)
+- `E`: export all sessions/windows to `~/.config/tuimux/tuimux-sessions.json`
+- `R`: restore sessions/windows from `~/.config/tuimux/tuimux-sessions.json` (skips existing sessions)
 
 Quit:
 - `q`, `Esc`, or `Ctrl-C`

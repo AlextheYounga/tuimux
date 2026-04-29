@@ -685,6 +685,7 @@ dependencies = [
  "crossterm 0.29.0",
  "ratatui",
  "serde",
+ "serde_json",
  "shell-escape",
  "tempfile",
 ]

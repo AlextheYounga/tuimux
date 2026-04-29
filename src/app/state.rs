@@ -78,11 +78,7 @@ impl State {
                 self.sessions
                     .iter()
                     .filter_map(|session| {
-                        if previous_expanded.contains(&session.name) {
-                            Some(session.name.clone())
-                        } else {
-                            None
-                        }
+                        if previous_expanded.contains(&session.name) { Some(session.name.clone()) } else { None }
                     })
                     .collect();
         }

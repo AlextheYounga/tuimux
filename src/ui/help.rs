@@ -21,7 +21,10 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
             Span::styled("CRUD ", crud_style),
             Span::raw("s session  w window  n rename  x close  a attach"),
         ]),
-        Line::from(vec![Span::styled("OTHER ", other_style), Span::raw("Space toggle  r refresh  q quit")]),
+        Line::from(vec![
+            Span::styled("OTHER ", other_style),
+            Span::raw("Space toggle  r refresh  E export  R restore  q quit"),
+        ]),
         build_status_line(state),
     ];
 

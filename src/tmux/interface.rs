@@ -230,10 +230,22 @@ fn resolve_preview_pane(target: &str) -> Result<String> {
 /// # Errors
 /// Returns an error if `tmux new-session` fails.
 pub fn create_session(session_name: &str) -> Result<()> {
-    let status = Command::new("tmux")
-        .args(["new-session", "-d", "-s", session_name])
-        .status()
-        .context("Failed to create session")?;
+    create_session_with_path(session_name, "")
+}
+
+/// Creates a detached tmux session at a specific working directory.
+///
+/// # Errors
+/// Returns an error if `tmux new-session` fails.
+pub fn create_session_with_path(session_name: &str, work_dir: &str) -> Result<()> {
+    let mut command = Command::new("tmux");
+    command.args(["new-session", "-d", "-s", session_name]);
+
+    if !work_dir.is_empty() {
+        command.args(["-c", work_dir]);
+    }
+
+    let status = command.status().context("Failed to create session")?;
 
     if !status.success() {
         anyhow::bail!("tmux failed to create session {session_name}");
@@ -247,11 +259,23 @@ pub fn create_session(session_name: &str) -> Result<()> {
 /// # Errors
 /// Returns an error if `tmux new-window` fails.
 pub fn create_window(session_name: &str, window_name: &str) -> Result<()> {
+    create_window_with_path(session_name, window_name, "")
+}
+
+/// Creates a new window in a target session at a specific path.
+///
+/// # Errors
+/// Returns an error if `tmux new-window` fails.
+pub fn create_window_with_path(session_name: &str, window_name: &str, work_dir: &str) -> Result<()> {
     let target_session = format!("{session_name}:");
-    let status = Command::new("tmux")
-        .args(["new-window", "-t", &target_session, "-n", window_name])
-        .status()
-        .context("Failed to create window")?;
+    let mut command = Command::new("tmux");
+    command.args(["new-window", "-t", &target_session, "-n", window_name]);
+
+    if !work_dir.is_empty() {
+        command.args(["-c", work_dir]);
+    }
+
+    let status = command.status().context("Failed to create window")?;
 
     if !status.success() {
         anyhow::bail!("tmux failed to create window {window_name} in {session_name}");

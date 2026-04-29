@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod backup;
 pub mod state;
 
 use anyhow::Result;
@@ -15,8 +16,9 @@ use std::time::{Duration, Instant};
 use crate::app::actions::Action;
 use crate::app::state::{ConfirmAction, InputAction, Modal, State};
 use crate::tmux::interface::{
-    attach_to_session, attach_to_window, capture_preview, close_session, close_window, create_session, create_window,
-    get_session, list_active_sessions, rename_session, rename_window,
+    attach_to_session, attach_to_window, capture_preview, close_session, close_window, create_session,
+    create_session_with_path, create_window, create_window_with_path, get_session, list_active_sessions,
+    rename_session, rename_window,
 };
 use crate::tmux::session::Session;
 use crate::ui;
@@ -123,6 +125,8 @@ impl App {
         match action {
             Action::Quit => return true,
             Action::Refresh => self.refresh_sessions(),
+            Action::Export => self.export_sessions(),
+            Action::Restore => self.restore_sessions(),
             Action::MoveUp => {
                 if matches!(self.state.focus, state::FocusRegion::Tree) {
                     self.state.move_up();
@@ -258,6 +262,7 @@ impl App {
             }
             Action::Rename => self.open_rename_modal(),
             Action::Close => self.open_close_modal(),
+            Action::Export | Action::Restore => {}
             _ => {}
         }
     }
@@ -427,6 +432,83 @@ impl App {
         self.state.status = Some(state::StatusLine { message: message.to_string(), is_error: true });
     }
 
+    fn export_sessions(&mut self) {
+        match backup::export_sessions(&self.state.sessions) {
+            Ok(path) => self.set_status(&format!("Exported sessions to {}", path.display())),
+            Err(error) => self.set_error_status(&format!("Export failed: {error}")),
+        }
+    }
+
+    fn restore_sessions(&mut self) {
+        let backup_file = match backup::import_sessions() {
+            Ok(file) => file,
+            Err(error) => {
+                self.set_error_status(&format!("Restore failed: {error}"));
+                return;
+            }
+        };
+
+        let mut created_sessions = 0usize;
+        let mut created_windows = 0usize;
+        let mut skipped_sessions = 0usize;
+
+        for session_backup in backup_file.sessions() {
+            match get_session(Some(&session_backup.name)) {
+                Ok(_) => {
+                    skipped_sessions += 1;
+                    continue;
+                }
+                Err(_) => {}
+            }
+
+            if session_backup.windows.is_empty() {
+                if let Err(error) = create_session_with_path(&session_backup.name, &session_backup.path) {
+                    self.set_error_status(&format!("Restore failed creating session {}: {error}", session_backup.name));
+                    return;
+                }
+
+                created_sessions += 1;
+                continue;
+            }
+
+            let first_window = &session_backup.windows[0];
+            if let Err(error) = create_session_with_path(&session_backup.name, &first_window.path) {
+                self.set_error_status(&format!("Restore failed creating session {}: {error}", session_backup.name));
+                return;
+            }
+
+            if let Err(error) = rename_window(&session_backup.name, "0", &first_window.name) {
+                self.set_error_status(&format!(
+                    "Restore failed naming first window for session {}: {error}",
+                    session_backup.name
+                ));
+                return;
+            }
+
+            created_sessions += 1;
+            created_windows += 1;
+
+            for window_backup in session_backup.windows.iter().skip(1) {
+                if let Err(error) =
+                    create_window_with_path(&session_backup.name, &window_backup.name, &window_backup.path)
+                {
+                    self.set_error_status(&format!(
+                        "Restore failed creating window {} in session {}: {error}",
+                        window_backup.name, session_backup.name
+                    ));
+                    return;
+                }
+
+                created_windows += 1;
+            }
+        }
+
+        self.refresh_sessions();
+        self.set_status(&format!(
+            "Restore complete: created {created_sessions} sessions and {created_windows} windows, skipped {skipped_sessions} sessions"
+        ));
+    }
+
     fn action_from_key(code: KeyCode, modifiers: KeyModifiers) -> Option<Action> {
         if matches!(code, KeyCode::Esc | KeyCode::Char('q'))
             || (matches!(code, KeyCode::Char('c')) && modifiers.contains(KeyModifiers::CONTROL))
@@ -435,13 +517,15 @@ impl App {
         }
 
         match code {
+            KeyCode::Char('E') => Some(Action::Export),
+            KeyCode::Char('R') => Some(Action::Restore),
             KeyCode::Up | KeyCode::Char('k') => Some(Action::MoveUp),
             KeyCode::Down | KeyCode::Char('j') => Some(Action::MoveDown),
             KeyCode::Left | KeyCode::Char('h') => Some(Action::Collapse),
             KeyCode::Right | KeyCode::Char('l') => Some(Action::Expand),
             KeyCode::Enter | KeyCode::Char('a') => Some(Action::Attach),
             KeyCode::Char(' ') => Some(Action::ToggleExpand),
-            KeyCode::Char('R' | 'r') => Some(Action::Refresh),
+            KeyCode::Char('r') => Some(Action::Refresh),
             KeyCode::Char('s') => Some(Action::CreateSession),
             KeyCode::Char('w') => Some(Action::CreateWindow),
             KeyCode::Char('n') => Some(Action::Rename),
