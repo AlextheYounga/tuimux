@@ -101,7 +101,7 @@ pub fn restore_session(session: &Session) -> Result<()> {
     attach_to_session(&session.name)
 }
 
-/// Checks if a tmux session is currently active.
+/// Checks if a tmux session exists.
 ///
 /// # Arguments
 /// * `session_name` – The name of the tmux session.
@@ -111,7 +111,7 @@ pub fn restore_session(session: &Session) -> Result<()> {
 ///
 /// # Errors
 /// Returns an error if the `tmux list-session` command fails.
-pub fn is_active_session(session_name: &str) -> Result<bool> {
+pub fn session_exists(session_name: &str) -> Result<bool> {
     let output = Command::new("tmux")
         .arg("list-session")
         .args(["-F", "#{session_name}"])
@@ -371,7 +371,7 @@ pub fn get_session_name() -> Result<String> {
     Ok(string_output.trim().to_string())
 }
 
-/// Lists all currently active tmux sessions.
+/// Lists all existing tmux sessions.
 ///
 /// # Returns
 /// A vector of session names.
@@ -381,7 +381,7 @@ pub fn get_session_name() -> Result<String> {
 ///
 /// # Errors
 /// Returns an error if tmux commands fail.
-pub fn list_active_sessions() -> Result<Vec<String>> {
+pub fn list_sessions() -> Result<Vec<String>> {
     let output = Command::new("tmux")
         .arg("list-sessions")
         .args(["-F", "#{session_name}"])

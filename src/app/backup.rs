@@ -11,18 +11,18 @@ const BACKUP_RELATIVE_PATH: &str = ".config/tuimux/tuimux-sessions.json";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SessionBackupFile {
-    sessions: Vec<SessionBackup>,
+    sessions: Vec<SessionRecord>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct SessionBackup {
+pub struct SessionRecord {
     pub name: String,
     pub path: String,
-    pub windows: Vec<WindowBackup>,
+    pub windows: Vec<WindowRecord>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct WindowBackup {
+pub struct WindowRecord {
     pub name: String,
     pub path: String,
 }
@@ -32,13 +32,13 @@ impl SessionBackupFile {
     pub fn from_sessions(sessions: &[Session]) -> Self {
         let session_backups = sessions
             .iter()
-            .map(|session| SessionBackup {
+            .map(|session| SessionRecord {
                 name: session.name.clone(),
                 path: session.work_dir.clone(),
                 windows: session
                     .windows
                     .iter()
-                    .map(|window| WindowBackup {
+                    .map(|window| WindowRecord {
                         name: window.name.clone(),
                         path: window
                             .panes
@@ -53,18 +53,27 @@ impl SessionBackupFile {
     }
 
     #[must_use]
-    pub fn sessions(&self) -> &[SessionBackup] {
+    pub fn sessions(&self) -> &[SessionRecord] {
         &self.sessions
     }
 }
 
-pub fn backup_path() -> Result<PathBuf> {
+/// Returns the configured backup file path in the user's home directory.
+///
+/// # Errors
+/// Returns an error when `HOME` is not set.
+pub fn sessions_file_path() -> Result<PathBuf> {
     let home = env::var("HOME").context("HOME environment variable is not set")?;
     Ok(PathBuf::from(home).join(BACKUP_RELATIVE_PATH))
 }
 
+/// Exports current sessions/windows into the backup file.
+///
+/// # Errors
+/// Returns an error when creating the backup directory, serializing payload,
+/// or writing the file fails.
 pub fn export_sessions(sessions: &[Session]) -> Result<PathBuf> {
-    let path = backup_path()?;
+    let path = sessions_file_path()?;
     let parent =
         path.parent().ok_or_else(|| anyhow::anyhow!("Backup path has no parent directory: {}", path.display()))?;
 
@@ -77,8 +86,12 @@ pub fn export_sessions(sessions: &[Session]) -> Result<PathBuf> {
     Ok(path)
 }
 
+/// Imports sessions/windows from the backup file.
+///
+/// # Errors
+/// Returns an error when reading the backup file or parsing JSON fails.
 pub fn import_sessions() -> Result<SessionBackupFile> {
-    let path = backup_path()?;
+    let path = sessions_file_path()?;
     let payload =
         fs::read_to_string(&path).with_context(|| format!("Failed to read backup file: {}", path.display()))?;
     let backup: SessionBackupFile = serde_json::from_str(&payload).context("Failed to parse backup JSON")?;

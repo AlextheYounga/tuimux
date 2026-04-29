@@ -2,7 +2,7 @@ pub mod actions;
 pub mod backup;
 pub mod state;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode};
@@ -17,8 +17,8 @@ use crate::app::actions::Action;
 use crate::app::state::{ConfirmAction, InputAction, Modal, State};
 use crate::tmux::interface::{
     attach_to_session, attach_to_window, capture_preview, close_session, close_window, create_session,
-    create_session_with_path, create_window, create_window_with_path, get_session, list_active_sessions,
-    rename_session, rename_window,
+    create_session_with_path, create_window, create_window_with_path, get_session, list_sessions, rename_session,
+    rename_window, session_exists,
 };
 use crate::tmux::session::Session;
 use crate::ui;
@@ -27,6 +27,13 @@ use crate::ui;
 struct RefreshOutcome {
     sessions: Vec<Session>,
     skipped_sessions: Vec<String>,
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+struct RestoreCounters {
+    created_sessions: usize,
+    created_windows: usize,
+    renamed_sessions: usize,
 }
 
 #[derive(Debug, Default)]
@@ -262,7 +269,6 @@ impl App {
             }
             Action::Rename => self.open_rename_modal(),
             Action::Close => self.open_close_modal(),
-            Action::Export | Action::Restore => {}
             _ => {}
         }
     }
@@ -448,65 +454,106 @@ impl App {
             }
         };
 
-        let mut created_sessions = 0usize;
-        let mut created_windows = 0usize;
-        let mut skipped_sessions = 0usize;
+        let mut counters = RestoreCounters::default();
+        let mut restore_errors: Vec<String> = Vec::new();
 
         for session_backup in backup_file.sessions() {
-            match get_session(Some(&session_backup.name)) {
-                Ok(_) => {
-                    skipped_sessions += 1;
-                    continue;
+            let target_session_name = match Self::resolve_session_name_for_restore(&session_backup.name) {
+                Ok(name) => {
+                    if name != session_backup.name {
+                        counters.renamed_sessions += 1;
+                    }
+                    name
                 }
-                Err(_) => {}
-            }
-
-            if session_backup.windows.is_empty() {
-                if let Err(error) = create_session_with_path(&session_backup.name, &session_backup.path) {
-                    self.set_error_status(&format!("Restore failed creating session {}: {error}", session_backup.name));
-                    return;
-                }
-
-                created_sessions += 1;
-                continue;
-            }
-
-            let first_window = &session_backup.windows[0];
-            if let Err(error) = create_session_with_path(&session_backup.name, &first_window.path) {
-                self.set_error_status(&format!("Restore failed creating session {}: {error}", session_backup.name));
-                return;
-            }
-
-            if let Err(error) = rename_window(&session_backup.name, "0", &first_window.name) {
-                self.set_error_status(&format!(
-                    "Restore failed naming first window for session {}: {error}",
-                    session_backup.name
-                ));
-                return;
-            }
-
-            created_sessions += 1;
-            created_windows += 1;
-
-            for window_backup in session_backup.windows.iter().skip(1) {
-                if let Err(error) =
-                    create_window_with_path(&session_backup.name, &window_backup.name, &window_backup.path)
-                {
+                Err(error) => {
                     self.set_error_status(&format!(
-                        "Restore failed creating window {} in session {}: {error}",
-                        window_backup.name, session_backup.name
+                        "Restore failed while resolving session {}: {error}",
+                        session_backup.name
                     ));
                     return;
                 }
+            };
 
-                created_windows += 1;
+            match Self::restore_one_session(session_backup, &target_session_name) {
+                Ok(created_windows) => {
+                    counters.created_sessions += 1;
+                    counters.created_windows += created_windows;
+                }
+                Err(error) => {
+                    restore_errors.push(error.to_string());
+                }
             }
         }
 
         self.refresh_sessions();
-        self.set_status(&format!(
-            "Restore complete: created {created_sessions} sessions and {created_windows} windows, skipped {skipped_sessions} sessions"
+        if restore_errors.is_empty() {
+            self.set_status(&format!(
+                "Restore complete: created {} sessions and {} windows, renamed {} duplicate sessions",
+                counters.created_sessions, counters.created_windows, counters.renamed_sessions
+            ));
+            return;
+        }
+
+        let first_error = restore_errors.first().map_or("unknown error", String::as_str);
+        self.set_error_status(&format!(
+            "Restore finished with {} errors: {}; created {} sessions and {} windows, renamed {} duplicate sessions",
+            restore_errors.len(),
+            first_error,
+            counters.created_sessions,
+            counters.created_windows,
+            counters.renamed_sessions
         ));
+    }
+
+    fn resolve_session_name_for_restore(session_name: &str) -> Result<String> {
+        if !session_exists(session_name)? {
+            return Ok(session_name.to_string());
+        }
+
+        let mut suffix = 2usize;
+        loop {
+            let candidate = format!("{session_name}-restored-{suffix}");
+            if !session_exists(&candidate)? {
+                return Ok(candidate);
+            }
+
+            suffix += 1;
+        }
+    }
+
+    fn restore_one_session(session_backup: &backup::SessionRecord, target_session_name: &str) -> Result<usize> {
+        if session_backup.windows.is_empty() {
+            create_session_with_path(target_session_name, &session_backup.path)
+                .with_context(|| format!("session {target_session_name}: create failed"))?;
+            return Ok(0);
+        }
+
+        let first_window = &session_backup.windows[0];
+        create_session_with_path(target_session_name, &first_window.path)
+            .with_context(|| format!("session {target_session_name}: create failed"))?;
+
+        let created_session = get_session(Some(target_session_name))
+            .with_context(|| format!("session {target_session_name}: read after create failed"))?;
+
+        let first_window_index = if let Some(window) = created_session.windows.first() {
+            window.index.as_str()
+        } else {
+            anyhow::bail!("session {target_session_name}: created with no windows");
+        };
+
+        rename_window(target_session_name, first_window_index, &first_window.name)
+            .with_context(|| format!("session {target_session_name}: rename first window failed"))?;
+
+        let mut created_windows = 1usize;
+        for window_backup in session_backup.windows.iter().skip(1) {
+            if let Err(error) = create_window_with_path(target_session_name, &window_backup.name, &window_backup.path) {
+                anyhow::bail!("session {target_session_name}: create window {} failed: {error}", window_backup.name);
+            }
+
+            created_windows += 1;
+        }
+
+        Ok(created_windows)
     }
 
     fn action_from_key(code: KeyCode, modifiers: KeyModifiers) -> Option<Action> {
@@ -548,7 +595,7 @@ impl App {
                     });
                 } else if count == 0 {
                     self.state.status =
-                        Some(state::StatusLine { message: String::from("No active tmux sessions"), is_error: false });
+                        Some(state::StatusLine { message: String::from("No tmux sessions"), is_error: false });
                 } else {
                     self.state.status =
                         Some(state::StatusLine { message: format!("Loaded {count} sessions"), is_error: false });
@@ -637,7 +684,7 @@ impl App {
     }
 
     fn fetch_sessions() -> Result<RefreshOutcome> {
-        let names = list_active_sessions()?;
+        let names = list_sessions()?;
         let mut outcome = RefreshOutcome { sessions: Vec::with_capacity(names.len()), skipped_sessions: Vec::new() };
 
         for name in names {
