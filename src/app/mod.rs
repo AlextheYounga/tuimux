@@ -423,6 +423,10 @@ impl App {
                 }
                 result
             }
+            ConfirmAction::OverwriteSessionExport => {
+                self.perform_export();
+                Ok(())
+            }
         };
 
         if let Err(error) = result {
@@ -439,6 +443,26 @@ impl App {
     }
 
     fn export_sessions(&mut self) {
+        match backup::export_file_exists() {
+            Ok(true) => {
+                self.state.modal = Some(Modal::Confirm {
+                    title: String::from("Overwrite existing export file"),
+                    prompt: String::from("Press y/Enter to overwrite, n/Esc to cancel"),
+                    action: ConfirmAction::OverwriteSessionExport,
+                });
+                return;
+            }
+            Ok(false) => {}
+            Err(error) => {
+                self.set_error_status(&format!("Export failed: {error}"));
+                return;
+            }
+        }
+
+        self.perform_export();
+    }
+
+    fn perform_export(&mut self) {
         match backup::export_sessions(&self.state.sessions) {
             Ok(path) => self.set_status(&format!("Exported sessions to {}", path.display())),
             Err(error) => self.set_error_status(&format!("Export failed: {error}")),

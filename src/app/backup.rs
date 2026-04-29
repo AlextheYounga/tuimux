@@ -67,6 +67,15 @@ pub fn sessions_file_path() -> Result<PathBuf> {
     Ok(PathBuf::from(home).join(BACKUP_RELATIVE_PATH))
 }
 
+/// Checks whether the session backup file already exists.
+///
+/// # Errors
+/// Returns an error when `HOME` is not set.
+pub fn export_file_exists() -> Result<bool> {
+    let path = sessions_file_path()?;
+    Ok(path.exists())
+}
+
 /// Exports current sessions/windows into the backup file.
 ///
 /// # Errors

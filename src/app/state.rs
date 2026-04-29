@@ -41,6 +41,8 @@ pub enum InputAction {
 pub enum ConfirmAction {
     CloseSession { session_name: String },
     CloseWindow { session_name: String, window_index: String },
+    OverwriteSessionExport,
+    RunSessionRestore,
 }
 
 #[derive(Debug, Default)]
