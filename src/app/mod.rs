@@ -427,6 +427,10 @@ impl App {
                 self.perform_export();
                 Ok(())
             }
+            ConfirmAction::RunSessionRestore => {
+                self.perform_restore_sessions();
+                Ok(())
+            }
         };
 
         if let Err(error) = result {
@@ -470,6 +474,26 @@ impl App {
     }
 
     fn restore_sessions(&mut self) {
+        let backup_file = match backup::import_sessions() {
+            Ok(file) => file,
+            Err(error) => {
+                self.set_error_status(&format!("Restore failed: {error}"));
+                return;
+            }
+        };
+
+        let session_count = backup_file.sessions().len();
+        let window_count = backup_file.sessions().iter().map(|session| session.windows.len()).sum::<usize>();
+        self.state.modal = Some(Modal::Confirm {
+            title: String::from("Confirm restore"),
+            prompt: format!(
+                "This will restore {session_count} sessions and {window_count} windows. Press y/Enter to continue, n/Esc to cancel"
+            ),
+            action: ConfirmAction::RunSessionRestore,
+        });
+    }
+
+    fn perform_restore_sessions(&mut self) {
         let backup_file = match backup::import_sessions() {
             Ok(file) => file,
             Err(error) => {
