@@ -1,9 +1,9 @@
 use anyhow::Result;
-use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyEventKind};
-use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode};
-use ratatui::Terminal;
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::ExecutableCommand;
 use ratatui::backend::CrosstermBackend;
+use ratatui::Terminal;
 use std::io::{self, Stdout};
 use std::sync::mpsc::{self, TryRecvError};
 use std::thread;
@@ -39,21 +39,24 @@ impl App {
         let mut last_refresh = Instant::now();
         let mut last_preview = Instant::now();
 
-        loop {
+        'main: loop {
             self.apply_preview_results();
             terminal.draw(|frame| ui::render(frame, &self.state))?;
 
-            if event::poll(input_poll)?
-                && let Event::Key(key_event) = event::read()?
-                && key_event.kind == KeyEventKind::Press
-            {
-                if self.handle_modal_key(key_event.code) {
-                    continue;
-                }
+            let mut handled_event = false;
+            while event::poll(if handled_event { Duration::from_millis(0) } else { input_poll })? {
+                handled_event = true;
+                if let Event::Key(key_event) = event::read()?
+                    && key_event.kind == KeyEventKind::Press
+                {
+                    if self.handle_modal_key(key_event.code) {
+                        continue;
+                    }
 
-                let action = Self::action_from_key(key_event.code, key_event.modifiers);
-                if self.handle_action(action) {
-                    break;
+                    let action = Self::action_from_key(key_event.code, key_event.modifiers);
+                    if self.handle_action(action) {
+                        break 'main;
+                    }
                 }
             }
 

@@ -26,25 +26,25 @@ pub fn split(area: Rect) -> Regions {
         .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
         .split(top);
 
-    Regions { left: horizontal[0], right: horizontal[1], bottom, overlay: centered_rect(60, 30, canvas) }
+    Regions { left: horizontal[0], right: horizontal[1], bottom, overlay: centered_rect(60, 9, canvas) }
 }
 
-fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
+fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Length(area.height.saturating_sub(height) / 2),
+            Constraint::Length(height),
+            Constraint::Min(0),
         ])
         .split(area);
 
     Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Length(area.width.saturating_sub(width) / 2),
+            Constraint::Length(width),
+            Constraint::Min(0),
         ])
         .split(popup_layout[1])[1]
 }

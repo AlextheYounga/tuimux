@@ -80,7 +80,11 @@ impl State {
                 self.sessions
                     .iter()
                     .filter_map(|session| {
-                        if previous_expanded.contains(&session.name) { Some(session.name.clone()) } else { None }
+                        if previous_expanded.contains(&session.name) {
+                            Some(session.name.clone())
+                        } else {
+                            None
+                        }
                     })
                     .collect();
         }
@@ -97,11 +101,12 @@ impl State {
         let Some(current) = self.selected_row_index(&rows) else {
             return;
         };
-        if current == 0 {
+        if rows.is_empty() {
             return;
         }
 
-        self.apply_row_selection(&rows[current - 1]);
+        let next = if current == 0 { rows.len() - 1 } else { current - 1 };
+        self.apply_row_selection(&rows[next]);
     }
 
     pub fn move_down(&mut self) {
@@ -109,11 +114,12 @@ impl State {
         let Some(current) = self.selected_row_index(&rows) else {
             return;
         };
-        if current + 1 >= rows.len() {
+        if rows.is_empty() {
             return;
         }
 
-        self.apply_row_selection(&rows[current + 1]);
+        let next = if current + 1 >= rows.len() { 0 } else { current + 1 };
+        self.apply_row_selection(&rows[next]);
     }
 
     pub fn select(&mut self) {
