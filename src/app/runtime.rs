@@ -1,9 +1,9 @@
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyEventKind};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::ExecutableCommand;
-use ratatui::backend::CrosstermBackend;
+use crossterm::event::{self, Event, KeyEventKind};
+use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode};
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 use std::io::{self, Stdout};
 use std::sync::mpsc::{self, TryRecvError};
 use std::thread;
@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use crate::app::state;
 use crate::app::{App, PreviewRequest, PreviewResult, PreviewRuntime, RefreshOutcome};
-use crate::tmux::interface::{capture_preview, get_session, list_sessions};
+use crate::tmux::interface::{capture_preview, fetch_all_sessions};
 use crate::ui;
 
 impl App {
@@ -176,17 +176,10 @@ impl App {
     }
 
     fn fetch_sessions() -> Result<RefreshOutcome> {
-        let names = list_sessions()?;
-        let mut outcome = RefreshOutcome { sessions: Vec::with_capacity(names.len()), skipped_sessions: Vec::new() };
-
-        for name in names {
-            match get_session(Some(&name)) {
-                Ok(session) => outcome.sessions.push(session),
-                Err(error) => outcome.skipped_sessions.push(format!("{name}: {error}")),
-            }
+        match fetch_all_sessions() {
+            Ok(sessions) => Ok(RefreshOutcome { sessions, skipped_sessions: Vec::new() }),
+            Err(error) => Err(error),
         }
-
-        Ok(outcome)
     }
 
     fn init_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>> {

@@ -1,8 +1,8 @@
-use std::process::{self, Command};
+use std::process::Command;
 
 use anyhow::{Context, Result};
 
-use crate::tmux::session::{Pane, Session, Window};
+use crate::tmux::session::{Session, Window};
 
 const TMUX_FIELD_SEPARATOR: &str = "\x1f";
 const TMUX_LINE_SEPARATOR: &str = "\n";
@@ -59,6 +59,60 @@ pub fn get_session_name() -> Result<String> {
 
     let string_output = String::from_utf8(output.stdout).context("Failed to convert tmux output to UTF-8 string")?;
     Ok(string_output.trim().to_string())
+}
+
+/// Fetches all active sessions and their windows in a single, efficient tmux pass.
+///
+/// # Errors
+/// Returns an error if tmux commands fail.
+pub fn fetch_all_sessions() -> Result<Vec<Session>> {
+    let output = Command::new("tmux")
+        .args([
+            "list-windows",
+            "-a",
+            "-F",
+            "#{session_name}\x1f#{session_path}\x1f#{window_index}\x1f#{window_name}\x1f#{window_layout}\x1f#{pane_current_path}",
+        ])
+        .output()
+        .context("Failed to execute 'tmux list-windows -a'")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains("no server running") {
+            return Ok(Vec::new());
+        }
+        anyhow::bail!("tmux list-windows -a failed: {stderr}");
+    }
+
+    let string_output = String::from_utf8(output.stdout).context("Failed to convert tmux output to UTF-8 string")?;
+    let mut sessions: Vec<Session> = Vec::new();
+
+    for line in string_output.split(TMUX_LINE_SEPARATOR) {
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let mut parts = line.splitn(6, TMUX_FIELD_SEPARATOR);
+        if let (Some(s_name), Some(s_path), Some(w_idx), Some(w_name), Some(w_layout), Some(p_path)) =
+            (parts.next(), parts.next(), parts.next(), parts.next(), parts.next(), parts.next())
+        {
+            let s_name = s_name.to_string();
+            let window = Window {
+                index: w_idx.to_string(),
+                name: w_name.to_string(),
+                layout: w_layout.to_string(),
+                active_pane_path: p_path.to_string(),
+            };
+
+            if let Some(session) = sessions.iter_mut().find(|s| s.name == s_name) {
+                session.windows.push(window);
+            } else {
+                sessions.push(Session { name: s_name, work_dir: s_path.to_string(), windows: vec![window] });
+            }
+        }
+    }
+
+    Ok(sessions)
 }
 
 /// Lists all existing tmux sessions.
@@ -126,7 +180,7 @@ fn get_windows(session_name: &str) -> Result<Vec<Window>> {
     let output = Command::new("tmux")
         .arg("list-windows")
         .args(["-t", session_name])
-        .args(["-F", "#{window_index}\x1f#{window_name}\x1f#{window_layout}"])
+        .args(["-F", "#{window_index}\x1f#{window_name}\x1f#{window_layout}\x1f#{pane_current_path}"])
         .output()
         .context("Failed to execute 'tmux list-windows'")?;
 
@@ -134,76 +188,19 @@ fn get_windows(session_name: &str) -> Result<Vec<Window>> {
     string_output
         .split(TMUX_LINE_SEPARATOR)
         .filter(|window| !window.trim().is_empty())
-        .map(|window| parse_window_string(window, session_name))
+        .map(parse_window_string)
         .collect()
 }
 
-fn parse_window_string(window: &str, session_name: &str) -> Result<Window> {
-    let mut parts = window.splitn(3, TMUX_FIELD_SEPARATOR);
-    match (parts.next(), parts.next(), parts.next()) {
-        (Some(index), Some(name), Some(layout)) => {
-            let index = index.to_string();
-            let window_target = format!("{session_name}:{index}");
-            let panes = get_panes(&window_target)?;
-            Ok(Window { index, name: name.to_string(), layout: layout.to_string(), panes })
-        }
+fn parse_window_string(window: &str) -> Result<Window> {
+    let mut parts = window.splitn(4, TMUX_FIELD_SEPARATOR);
+    match (parts.next(), parts.next(), parts.next(), parts.next()) {
+        (Some(index), Some(name), Some(layout), Some(path)) => Ok(Window {
+            index: index.to_string(),
+            name: name.to_string(),
+            layout: layout.to_string(),
+            active_pane_path: path.to_string(),
+        }),
         _ => anyhow::bail!("Failed to parse window string: {window}"),
     }
-}
-
-fn get_panes(window_target: &str) -> Result<Vec<Pane>> {
-    let output = Command::new("tmux")
-        .arg("list-panes")
-        .args(["-t", window_target])
-        .args(["-F", "#{pane_index}\x1f#{pane_pid}\x1f#{pane_current_path}"])
-        .output()
-        .with_context(|| format!("Failed to execute 'tmux list-panes' for window {window_target}"))?;
-
-    let string_output = String::from_utf8(output.stdout).context("Failed to convert tmux output to UTF-8 string")?;
-    string_output.split(TMUX_LINE_SEPARATOR).filter(|pane| !pane.trim().is_empty()).map(parse_pane_string).collect()
-}
-
-fn parse_pane_string(pane: &str) -> Result<Pane> {
-    let mut parts = pane.splitn(3, TMUX_FIELD_SEPARATOR);
-    match (parts.next(), parts.next(), parts.next()) {
-        (Some(index), Some(pid), Some(work_dir_str)) => {
-            let process = get_foreground_process(pid)?;
-            let current_command = match process {
-                Some((cmd_pid, cmdline)) if process::id() != cmd_pid => Some(cmdline),
-                _ => None,
-            };
-
-            Ok(Pane { index: index.to_string(), current_command, work_dir: work_dir_str.to_string() })
-        }
-        _ => anyhow::bail!("Failed to parse pane string: {pane}"),
-    }
-}
-
-fn get_foreground_process(shell_pid: &str) -> Result<Option<(u32, String)>> {
-    Ok(get_process_children(shell_pid)?.into_iter().next())
-}
-
-fn get_process_children(shell_pid: &str) -> Result<Vec<(u32, String)>> {
-    let output = Command::new("ps")
-        .args(["-o", "pid=,args="])
-        .args(["--ppid", shell_pid])
-        .output()
-        .with_context(|| format!("Failed to get children of process #{shell_pid}"))?;
-
-    let output_str = String::from_utf8(output.stdout)?;
-    let mut children = Vec::new();
-    for line in output_str.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-
-        if let Some((pid_str, cmdline)) = trimmed.split_once(' ')
-            && let Ok(pid) = pid_str.trim().parse::<u32>()
-        {
-            children.push((pid, cmdline.trim().to_string()));
-        }
-    }
-
-    Ok(children)
 }

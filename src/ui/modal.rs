@@ -1,6 +1,6 @@
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::widgets::{Block, Borders, Clear, Padding, Paragraph};
-use ratatui::Frame;
 
 use crate::app::state::{Modal, State};
 use crate::ui::theme;

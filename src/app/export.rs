@@ -40,13 +40,7 @@ impl SessionBackupFile {
                 windows: session
                     .windows
                     .iter()
-                    .map(|window| WindowRecord {
-                        name: window.name.clone(),
-                        path: window
-                            .panes
-                            .first()
-                            .map_or_else(|| session.work_dir.clone(), |pane| pane.work_dir.clone()),
-                    })
+                    .map(|window| WindowRecord { name: window.name.clone(), path: window.active_pane_path.clone() })
                     .collect(),
             })
             .collect();
