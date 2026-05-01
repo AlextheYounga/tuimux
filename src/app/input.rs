@@ -1,6 +1,6 @@
-use crate::app::App;
 use crate::app::actions::Action;
 use crate::app::state::{self, ConfirmAction, InputAction, Modal};
+use crate::app::App;
 use crate::tmux::interface::{
     attach_to_session, attach_to_window, close_session, close_window, create_session, create_window, rename_session,
     rename_window,
@@ -55,6 +55,8 @@ impl App {
     fn with_tree_focus(&mut self, callback: impl FnOnce(&mut state::State)) {
         if matches!(self.state.focus, state::FocusRegion::Tree) {
             callback(&mut self.state);
+            self.state.preview.clear();
+            self.state.preview_is_error = false;
             self.request_preview_refresh();
         }
     }

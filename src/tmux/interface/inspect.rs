@@ -32,7 +32,7 @@ pub fn capture_preview(session_name: &str, window_index: Option<&str>) -> Result
     let pane_target = resolve_preview_pane(&target)?;
 
     let output = Command::new("tmux")
-        .args(["capture-pane", "-p", "-S", "-200", "-t", &pane_target])
+        .args(["capture-pane", "-e", "-p", "-S", "-200", "-t", &pane_target])
         .output()
         .with_context(|| format!("Failed to capture pane output for target {pane_target}"))?;
 
@@ -42,7 +42,7 @@ pub fn capture_preview(session_name: &str, window_index: Option<&str>) -> Result
     }
 
     let output = String::from_utf8(output.stdout).context("Failed to convert tmux capture-pane output to UTF-8")?;
-    Ok(output.trim_end().to_string())
+    Ok(output.replace('\r', "").replace('\t', "        ").trim_end().to_string())
 }
 
 /// Gets the name of the current tmux session.

@@ -1,8 +1,9 @@
 use std::fmt::Write;
 
-use ratatui::Frame;
+use ansi_to_tui::IntoText;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::widgets::{Block, Borders, Padding, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Clear, Padding, Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::app::state::State;
 use crate::ui::theme;
@@ -41,7 +42,16 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
     let preview_title = if focused { "Preview (live, 1s)" } else { "Preview" };
     let preview_style = if state.preview_is_error { theme::error_status() } else { theme::info_text() };
 
-    let preview_widget = Paragraph::new(state.preview.as_str()).style(preview_style).wrap(Wrap { trim: false }).block(
+    let preview_content = if state.preview_is_error {
+        ratatui::text::Text::raw(state.preview.as_str())
+    } else {
+        match state.preview.into_text() {
+            Ok(text) => text,
+            Err(e) => ratatui::text::Text::raw(format!("ANSI parse error: {e}\n{}", state.preview.as_str())),
+        }
+    };
+
+    let preview_widget = Paragraph::new(preview_content).style(preview_style).wrap(Wrap { trim: false }).block(
         Block::default()
             .borders(Borders::ALL)
             .border_style(theme::panel_border(focused))
@@ -50,6 +60,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
             .padding(Padding::new(1, 1, 0, 0)),
     );
 
+    frame.render_widget(Clear, sections[0]);
     frame.render_widget(details_widget, sections[0]);
+    frame.render_widget(Clear, sections[1]);
     frame.render_widget(preview_widget, sections[1]);
 }

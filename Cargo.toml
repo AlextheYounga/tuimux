@@ -8,6 +8,7 @@ repository="https://github.com/AlextheYounga/tuimux.git"
 edition = "2024"
 
 [dependencies]
+ansi-to-tui = "7.0.0"
 anyhow = "1"
 crossterm = "0.29"
 ratatui = "0.29"
