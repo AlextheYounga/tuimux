@@ -1,6 +1,6 @@
+use crate::app::App;
 use crate::app::actions::Action;
 use crate::app::state::{self, ConfirmAction, InputAction, Modal};
-use crate::app::App;
 use crate::tmux::interface::{
     attach_to_session, attach_to_window, close_session, close_window, create_session, create_window, rename_session,
     rename_window,
@@ -15,6 +15,7 @@ impl App {
 
         match action {
             Action::Quit => return true,
+            Action::StartFilter => self.with_tree_focus(state::State::start_filter),
             Action::Refresh => self.refresh_sessions(),
             Action::Export => self.export_sessions(),
             Action::Restore => self.restore_sessions(),
@@ -50,6 +51,25 @@ impl App {
                 true
             }
         }
+    }
+
+    pub(super) fn handle_filter_key(&mut self, code: KeyCode) -> bool {
+        if !self.state.filter_mode {
+            return false;
+        }
+
+        match code {
+            KeyCode::Esc => {
+                self.state.clear_filter();
+                self.state.stop_filter();
+            }
+            KeyCode::Enter => self.state.stop_filter(),
+            KeyCode::Backspace => self.state.pop_filter_char(),
+            KeyCode::Char(character) => self.state.append_filter_char(character),
+            _ => {}
+        }
+
+        true
     }
 
     fn with_tree_focus(&mut self, callback: impl FnOnce(&mut state::State)) {

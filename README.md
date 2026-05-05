@@ -48,6 +48,7 @@ Navigation:
 - `Right` / `l`: expand selected session
 - `Enter`: attach to selected session/window
 - `Space`: toggle expand/collapse
+- `/`: start filter mode (type to filter sessions/windows, `Enter` to apply, `Esc` to clear)
 - `r`: refresh sessions
 
 Actions:

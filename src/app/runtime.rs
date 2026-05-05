@@ -53,6 +53,10 @@ impl App {
                         continue;
                     }
 
+                    if self.handle_filter_key(key_event.code) {
+                        continue;
+                    }
+
                     let action = Self::action_from_key(key_event.code, key_event.modifiers);
                     if self.handle_action(action) {
                         break 'main;
