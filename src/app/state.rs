@@ -57,6 +57,8 @@ pub struct State {
     pub modal: Option<Modal>,
     pub preview: String,
     pub preview_is_error: bool,
+    pub filter_mode: bool,
+    pub filter_query: String,
 }
 
 impl State {
@@ -238,6 +240,34 @@ impl State {
         }
     }
 
+    pub fn start_filter(&mut self) {
+        self.filter_mode = true;
+    }
+
+    pub fn stop_filter(&mut self) {
+        self.filter_mode = false;
+    }
+
+    pub fn clear_filter(&mut self) {
+        self.filter_query.clear();
+        self.normalize_selection_after_filter_change();
+    }
+
+    pub fn append_filter_char(&mut self, character: char) {
+        self.filter_query.push(character);
+        self.normalize_selection_after_filter_change();
+    }
+
+    pub fn pop_filter_char(&mut self) {
+        self.filter_query.pop();
+        self.normalize_selection_after_filter_change();
+    }
+
+    #[must_use]
+    pub fn is_filter_active(&self) -> bool {
+        !self.filter_query.trim().is_empty()
+    }
+
     fn restore_selection(&mut self, previous_selection: Option<TreeSelection>) -> bool {
         let Some(previous_selection) = previous_selection else {
             return false;
@@ -279,15 +309,23 @@ impl State {
 
     fn tree_rows(&self) -> Vec<TreeRow> {
         let mut rows = Vec::new();
+        let show_windows = self.is_filter_active();
 
         for (session_index, session) in self.sessions.iter().enumerate() {
-            rows.push(TreeRow { session_index, window_index: None });
-
-            if !self.expanded_sessions.contains(&session.name) {
+            if !self.session_matches_filter(session) {
                 continue;
             }
 
-            for (window_index, _) in session.windows.iter().enumerate() {
+            rows.push(TreeRow { session_index, window_index: None });
+
+            if !show_windows && !self.expanded_sessions.contains(&session.name) {
+                continue;
+            }
+
+            for (window_index, window) in session.windows.iter().enumerate() {
+                if self.is_filter_active() && !self.window_matches_filter(window) {
+                    continue;
+                }
                 rows.push(TreeRow { session_index, window_index: Some(window_index) });
             }
         }
@@ -299,6 +337,42 @@ impl State {
         rows.iter().position(|row| {
             self.selected_session == Some(row.session_index) && self.selected_window == row.window_index
         })
+    }
+
+    fn normalize_selection_after_filter_change(&mut self) {
+        let rows = self.tree_rows();
+        if rows.is_empty() {
+            self.selected_session = None;
+            self.selected_window = None;
+            self.selection = None;
+            return;
+        }
+
+        if self.selected_row_index(&rows).is_none() {
+            self.apply_row_selection(&rows[0]);
+            return;
+        }
+
+        self.sync_selection();
+    }
+
+    fn session_matches_filter(&self, session: &Session) -> bool {
+        let query = self.filter_query.trim().to_lowercase();
+        if query.is_empty() {
+            return true;
+        }
+
+        session.name.to_lowercase().contains(&query)
+            || session.windows.iter().any(|window| self.window_matches_filter(window))
+    }
+
+    fn window_matches_filter(&self, window: &Window) -> bool {
+        let query = self.filter_query.trim().to_lowercase();
+        if query.is_empty() {
+            return true;
+        }
+
+        window.name.to_lowercase().contains(&query) || window.index.to_lowercase().contains(&query)
     }
 
     fn apply_row_selection(&mut self, row: &TreeRow) {

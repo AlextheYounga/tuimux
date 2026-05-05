@@ -58,6 +58,7 @@ impl App {
         }
 
         match code {
+            KeyCode::Char('/') => Some(Action::StartFilter),
             KeyCode::Char('E') => Some(Action::Export),
             KeyCode::Char('R') => Some(Action::Restore),
             KeyCode::Up | KeyCode::Char('k') => Some(Action::MoveUp),

@@ -1,9 +1,9 @@
 use std::fmt::Write;
 
 use ansi_to_tui::IntoText;
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::widgets::{Block, Borders, Clear, Padding, Paragraph, Wrap};
-use ratatui::Frame;
 
 use crate::app::state::State;
 use crate::ui::theme;

@@ -23,7 +23,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
         ]),
         Line::from(vec![
             Span::styled("OTHER ", other_style),
-            Span::raw("Space toggle  r refresh  E export  R restore  q quit"),
+            Span::raw("/ filter  Space toggle  r refresh  E export  R restore  q quit"),
         ]),
         build_status_line(state),
     ];
