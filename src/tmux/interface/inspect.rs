@@ -17,7 +17,8 @@ pub fn get_session(session_name: Option<&str>) -> Result<Session> {
     let path =
         get_session_path(&name).with_context(|| format!("Failed to get working directory for session '{name}'"))?;
     let windows = get_windows(&name).with_context(|| format!("Failed to get windows for session '{name}'"))?;
-    Ok(Session { name, work_dir: path, windows })
+    let activity = windows.iter().map(|w| w.activity).max().unwrap_or(0);
+    Ok(Session { name, work_dir: path, windows, activity })
 }
 
 /// Captures text output from the active pane in a tmux target.
@@ -71,7 +72,7 @@ pub fn fetch_all_sessions() -> Result<Vec<Session>> {
             "list-windows",
             "-a",
             "-F",
-            "#{session_name}\x1f#{session_path}\x1f#{window_index}\x1f#{window_name}\x1f#{window_layout}\x1f#{pane_current_path}",
+            "#{session_name}\x1f#{session_path}\x1f#{session_activity}\x1f#{window_index}\x1f#{window_name}\x1f#{window_layout}\x1f#{pane_current_path}\x1f#{window_activity}",
         ])
         .output()
         .context("Failed to execute 'tmux list-windows -a'")?;
@@ -92,24 +93,56 @@ pub fn fetch_all_sessions() -> Result<Vec<Session>> {
             continue;
         }
 
-        let mut parts = line.splitn(6, TMUX_FIELD_SEPARATOR);
-        if let (Some(s_name), Some(s_path), Some(w_idx), Some(w_name), Some(w_layout), Some(p_path)) =
-            (parts.next(), parts.next(), parts.next(), parts.next(), parts.next(), parts.next())
-        {
+        let mut parts = line.splitn(8, TMUX_FIELD_SEPARATOR);
+        if let (
+            Some(s_name),
+            Some(s_path),
+            Some(s_activity),
+            Some(w_idx),
+            Some(w_name),
+            Some(w_layout),
+            Some(p_path),
+            Some(w_activity),
+        ) = (
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+        ) {
             let s_name = s_name.to_string();
+            let s_activity: u64 = s_activity.parse().unwrap_or(0);
+            let w_activity: u64 = w_activity.parse().unwrap_or(0);
             let window = Window {
                 index: w_idx.to_string(),
                 name: w_name.to_string(),
                 layout: w_layout.to_string(),
                 active_pane_path: p_path.to_string(),
+                activity: w_activity,
             };
 
             if let Some(session) = sessions.iter_mut().find(|s| s.name == s_name) {
+                if w_activity > session.activity {
+                    session.activity = w_activity;
+                }
                 session.windows.push(window);
             } else {
-                sessions.push(Session { name: s_name, work_dir: s_path.to_string(), windows: vec![window] });
+                sessions.push(Session {
+                    name: s_name,
+                    work_dir: s_path.to_string(),
+                    windows: vec![window],
+                    activity: s_activity.max(w_activity),
+                });
             }
         }
+    }
+
+    sessions.sort_by(|a, b| b.activity.cmp(&a.activity));
+    for session in &mut sessions {
+        session.windows.sort_by(|a, b| b.activity.cmp(&a.activity));
     }
 
     Ok(sessions)
@@ -180,7 +213,10 @@ fn get_windows(session_name: &str) -> Result<Vec<Window>> {
     let output = Command::new("tmux")
         .arg("list-windows")
         .args(["-t", session_name])
-        .args(["-F", "#{window_index}\x1f#{window_name}\x1f#{window_layout}\x1f#{pane_current_path}"])
+        .args([
+            "-F",
+            "#{window_index}\x1f#{window_name}\x1f#{window_layout}\x1f#{pane_current_path}\x1f#{window_activity}",
+        ])
         .output()
         .context("Failed to execute 'tmux list-windows'")?;
 
@@ -193,13 +229,14 @@ fn get_windows(session_name: &str) -> Result<Vec<Window>> {
 }
 
 fn parse_window_string(window: &str) -> Result<Window> {
-    let mut parts = window.splitn(4, TMUX_FIELD_SEPARATOR);
-    match (parts.next(), parts.next(), parts.next(), parts.next()) {
-        (Some(index), Some(name), Some(layout), Some(path)) => Ok(Window {
+    let mut parts = window.splitn(5, TMUX_FIELD_SEPARATOR);
+    match (parts.next(), parts.next(), parts.next(), parts.next(), parts.next()) {
+        (Some(index), Some(name), Some(layout), Some(path), Some(activity)) => Ok(Window {
             index: index.to_string(),
             name: name.to_string(),
             layout: layout.to_string(),
             active_pane_path: path.to_string(),
+            activity: activity.parse().unwrap_or(0),
         }),
         _ => anyhow::bail!("Failed to parse window string: {window}"),
     }

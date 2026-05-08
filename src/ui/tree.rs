@@ -1,10 +1,28 @@
-use ratatui::Frame;
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Padding, Paragraph};
+use ratatui::Frame;
 
 use crate::app::state::State;
 use crate::ui::theme;
+
+fn format_relative_time(timestamp: u64) -> String {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+
+    let diff = now.saturating_sub(timestamp);
+
+    if diff < 60 {
+        format!("{diff}s ago")
+    } else if diff < 3600 {
+        format!("{}m ago", diff / 60)
+    } else if diff < 86400 {
+        format!("{}h ago", diff / 3600)
+    } else {
+        format!("{}d ago", diff / 86400)
+    }
+}
 
 pub fn render(frame: &mut Frame, area: Rect, state: &State) {
     let mut lines = Vec::new();
@@ -38,7 +56,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
             let fold = if expanded { "[-]" } else { "[+]" };
             let is_selected_session = state.selected_session == Some(session_index) && state.selected_window.is_none();
             let marker = if is_selected_session { ">" } else { " " };
-            let mut line = Line::from(format!("{marker} {fold} {}", session.name));
+            let time_str = format_relative_time(session.activity);
+            let mut line = Line::from(format!("{marker} {fold} {} ({time_str})", session.name));
             if is_selected_session {
                 line = line.style(theme::selected_row());
             }
@@ -59,7 +78,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
                 let is_selected_window =
                     state.selected_session == Some(session_index) && state.selected_window == Some(window_index);
                 let marker = if is_selected_window { "*" } else { "-" };
-                let mut line = Line::from(format!("  {marker} [{}] {}", window.index, window.name));
+                let time_str = format_relative_time(window.activity);
+                let mut line = Line::from(format!("  {marker} [{}] {} ({time_str})", window.index, window.name));
                 if is_selected_window {
                     line = line.style(theme::selected_row());
                 }
@@ -69,13 +89,12 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
     }
 
     let focused = state.focus_label() == "tree";
-    let title = if focused { "Sessions (focus)" } else { "Sessions" };
 
     let tree = Paragraph::new(lines).block(
         Block::default()
             .borders(Borders::ALL)
             .border_style(theme::panel_border(focused))
-            .title(title)
+            .title("Sessions")
             .title_style(theme::panel_title(focused))
             .padding(Padding::new(1, 1, 0, 0)),
     );
