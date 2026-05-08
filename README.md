@@ -27,6 +27,10 @@ It gives you a fast dashboard to:
 - `tmux` installed and available in `PATH`
 - Linux/macOS shell environment
 
+## Startup Behavior
+
+If you launch `tuimux` from inside an existing tmux session, it will automatically detach that tmux client and relaunch itself outside tmux before showing the TUI. This prevents accidentally creating nested tmux sessions, so you do not need to manually detach first.
+
 ## Install
 
 From crates.io
