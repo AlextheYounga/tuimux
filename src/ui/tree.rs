@@ -1,9 +1,9 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Padding, Paragraph};
-use ratatui::Frame;
 
 use crate::app::state::State;
 use crate::ui::theme;

@@ -51,7 +51,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
         }
     };
 
-    let preview_widget = Paragraph::new(preview_content).style(preview_style).wrap(Wrap { trim: false }).block(
+    let preview_widget = Paragraph::new(preview_content).style(preview_style).block(
         Block::default()
             .borders(Borders::ALL)
             .border_style(theme::panel_border(focused))
