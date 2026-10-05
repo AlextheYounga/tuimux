@@ -1,0 +1,2 @@
+#!/bin/sh
+printf '%s\n' 'ubuntu\037/home/alex\0371700000000\0370\037bash\037b25d,80x24,0,0,0\037/home/alex\0371700000001'

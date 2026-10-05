@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 
 use crate::tmux::session::{Session, Window};
 
-const TMUX_FIELD_SEPARATOR: &str = "\x1f";
+const TMUX_FIELD_SEPARATOR: &str = r"\037";
 const TMUX_LINE_SEPARATOR: &str = "\n";
 
 /// Retrives a [`Session`] by name, or infer the current session if a name is
@@ -72,7 +72,7 @@ pub fn fetch_all_sessions() -> Result<Vec<Session>> {
             "list-windows",
             "-a",
             "-F",
-            "#{session_name}\x1f#{session_path}\x1f#{session_activity}\x1f#{window_index}\x1f#{window_name}\x1f#{window_layout}\x1f#{pane_current_path}\x1f#{window_activity}",
+            "#{session_name}\\037#{session_path}\\037#{session_activity}\\037#{window_index}\\037#{window_name}\\037#{window_layout}\\037#{pane_current_path}\\037#{window_activity}",
         ])
         .output()
         .context("Failed to execute 'tmux list-windows -a'")?;
@@ -215,7 +215,7 @@ fn get_windows(session_name: &str) -> Result<Vec<Window>> {
         .args(["-t", session_name])
         .args([
             "-F",
-            "#{window_index}\x1f#{window_name}\x1f#{window_layout}\x1f#{pane_current_path}\x1f#{window_activity}",
+            "#{window_index}\\037#{window_name}\\037#{window_layout}\\037#{pane_current_path}\\037#{window_activity}",
         ])
         .output()
         .context("Failed to execute 'tmux list-windows'")?;
