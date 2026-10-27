@@ -22,17 +22,12 @@ pub fn run() -> Result<()> {
     app.run()
 }
 
-/// Detaches the current tmux client and relaunches tuimux outside tmux if running inside a session.
-///
-/// # Errors
-/// Returns an error if the current executable path cannot be determined or if `tmux detach-client` fails.
-pub fn maybe_relaunch_outside_tmux() -> Result<bool> {
+fn maybe_relaunch_outside_tmux() -> Result<bool> {
     if env::var_os("TMUX").is_none() || env::var_os(TUIMUX_RELAUNCHED).is_some() {
         return Ok(false);
     }
 
-    let current_exe = env::current_exe()
-        .context("Failed to determine current executable path for relaunch")?;
+    let current_exe = env::current_exe().context("Failed to determine current executable path for relaunch")?;
     let exe = shell_escape::escape(current_exe.to_string_lossy());
     let relaunch_cmd = format!("TUIMUX_RELAUNCHED=1 {exe}");
 
