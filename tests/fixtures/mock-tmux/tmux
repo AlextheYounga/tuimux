@@ -1,0 +1,9 @@
+#!/bin/sh
+if [ -n "$MOCK_TMUX_LOG" ]; then
+    printf '%s\n' "$*" > "$MOCK_TMUX_LOG"
+fi
+if [ -n "$MOCK_TMUX_FAIL" ]; then
+    printf '%s\n' "mock detach failure" >&2
+    exit 1
+fi
+exit 0
