@@ -14,5 +14,5 @@ pub struct Session {
     pub name: String,
     pub work_dir: String,
     pub windows: Vec<Window>,
-    pub activity: u64,
+    pub last_accessed: u64,
 }

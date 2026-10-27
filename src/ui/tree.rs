@@ -56,7 +56,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &State) {
             let fold = if expanded { "[-]" } else { "[+]" };
             let is_selected_session = state.selected_session == Some(session_index) && state.selected_window.is_none();
             let marker = if is_selected_session { ">" } else { " " };
-            let time_str = format_relative_time(session.activity);
+            let time_str = format_relative_time(session.last_accessed);
             let mut line = Line::from(format!("{marker} {fold} {} ({time_str})", session.name));
             if is_selected_session {
                 line = line.style(theme::selected_row());

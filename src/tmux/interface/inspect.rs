@@ -1,3 +1,4 @@
+use std::cmp::Reverse;
 use std::process::Command;
 
 use anyhow::{Context, Result};
@@ -17,8 +18,9 @@ pub fn get_session(session_name: Option<&str>) -> Result<Session> {
     let path =
         get_session_path(&name).with_context(|| format!("Failed to get working directory for session '{name}'"))?;
     let windows = get_windows(&name).with_context(|| format!("Failed to get windows for session '{name}'"))?;
-    let activity = windows.iter().map(|w| w.activity).max().unwrap_or(0);
-    Ok(Session { name, work_dir: path, windows, activity })
+    let last_accessed = get_session_last_accessed(&name)
+        .with_context(|| format!("Failed to get last-accessed time for session '{name}'"))?;
+    Ok(Session { name, work_dir: path, windows, last_accessed })
 }
 
 /// Captures text output from the active pane in a tmux target.
@@ -72,7 +74,7 @@ pub fn fetch_all_sessions() -> Result<Vec<Session>> {
             "list-windows",
             "-a",
             "-F",
-            "#{session_name}\\037#{session_path}\\037#{session_activity}\\037#{window_index}\\037#{window_name}\\037#{window_layout}\\037#{pane_current_path}\\037#{window_activity}",
+            "#{session_name}\\037#{session_path}\\037#{session_last_attached}\\037#{session_created}\\037#{window_index}\\037#{window_name}\\037#{window_layout}\\037#{pane_current_path}\\037#{window_activity}",
         ])
         .output()
         .context("Failed to execute 'tmux list-windows -a'")?;
@@ -93,11 +95,12 @@ pub fn fetch_all_sessions() -> Result<Vec<Session>> {
             continue;
         }
 
-        let mut parts = line.splitn(8, TMUX_FIELD_SEPARATOR);
+        let mut parts = line.splitn(9, TMUX_FIELD_SEPARATOR);
         if let (
             Some(s_name),
             Some(s_path),
-            Some(s_activity),
+            Some(s_last_attached),
+            Some(s_created),
             Some(w_idx),
             Some(w_name),
             Some(w_layout),
@@ -112,9 +115,12 @@ pub fn fetch_all_sessions() -> Result<Vec<Session>> {
             parts.next(),
             parts.next(),
             parts.next(),
+            parts.next(),
         ) {
             let s_name = s_name.to_string();
-            let s_activity: u64 = s_activity.parse().unwrap_or(0);
+            let s_last_attached: u64 = s_last_attached.parse().unwrap_or(0);
+            let s_created: u64 = s_created.parse().unwrap_or(0);
+            let last_accessed = s_last_attached.max(s_created);
             let w_activity: u64 = w_activity.parse().unwrap_or(0);
             let window = Window {
                 index: w_idx.to_string(),
@@ -125,24 +131,21 @@ pub fn fetch_all_sessions() -> Result<Vec<Session>> {
             };
 
             if let Some(session) = sessions.iter_mut().find(|s| s.name == s_name) {
-                if w_activity > session.activity {
-                    session.activity = w_activity;
-                }
                 session.windows.push(window);
             } else {
                 sessions.push(Session {
                     name: s_name,
                     work_dir: s_path.to_string(),
                     windows: vec![window],
-                    activity: s_activity.max(w_activity),
+                    last_accessed,
                 });
             }
         }
     }
 
-    sessions.sort_by(|a, b| b.activity.cmp(&a.activity));
+    sessions.sort_by_key(|session| Reverse(session.last_accessed));
     for session in &mut sessions {
-        session.windows.sort_by(|a, b| b.activity.cmp(&a.activity));
+        session.windows.sort_by_key(|window| Reverse(window.activity));
     }
 
     Ok(sessions)
@@ -207,6 +210,23 @@ fn get_session_path(session_name: &str) -> Result<String> {
 
     let string_output = String::from_utf8(output.stdout).context("Failed to convert tmux output to UTF-8 string")?;
     Ok(string_output.trim().to_string())
+}
+
+fn get_session_last_accessed(session_name: &str) -> Result<u64> {
+    let output = Command::new("tmux")
+        .arg("display-message")
+        .arg("-p")
+        .args(["-t", session_name])
+        .args(["-F", "#{session_last_attached}\\037#{session_created}"])
+        .output()
+        .context("Failed to execute 'tmux display-message'")?;
+
+    let string_output = String::from_utf8(output.stdout).context("Failed to convert tmux output to UTF-8 string")?;
+    let mut timestamps = string_output.trim().splitn(2, TMUX_FIELD_SEPARATOR);
+    let last_attached = timestamps.next().and_then(|value| value.parse().ok()).unwrap_or(0);
+    let created = timestamps.next().and_then(|value| value.parse().ok()).unwrap_or(0);
+
+    Ok(last_attached.max(created))
 }
 
 fn get_windows(session_name: &str) -> Result<Vec<Window>> {

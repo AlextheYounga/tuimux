@@ -1,2 +1,6 @@
 #!/bin/sh
-printf '%s\n' 'ubuntu\037/home/alex\0371700000000\0370\037bash\037b25d,80x24,0,0,0\037/home/alex\0371700000001'
+printf '%s\n' \
+    'older-attached\037/home/alex/older\037100\03750\0370\037editor\037layout-0\037/home/alex/older\037300' \
+    'older-attached\037/home/alex/older\037100\03750\0371\037shell\037layout-1\037/home/alex/older\037400' \
+    'newer-attached\037/home/alex/newer\037200\03720\0370\037shell\037layout-2\037/home/alex/newer\037200' \
+    'never-attached\037/home/alex/new\037\037300\0370\037shell\037layout-3\037/home/alex/new\037100'
