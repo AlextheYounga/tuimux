@@ -1,0 +1,2 @@
+#!/bin/sh
+printf '%s\n' "$*" >> "$TUIMUX_TMUX_ACCESS_LOG"

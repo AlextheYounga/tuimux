@@ -37,11 +37,11 @@ fn tmux_3_4_fetch_helper() -> anyhow::Result<()> {
     let sessions = fetch_all_sessions()?;
 
     assert_eq!(sessions.len(), 3);
-    assert_eq!(sessions[0].name, "never-attached");
+    assert_eq!(sessions[0].name, "never-accessed");
     assert_eq!(sessions[0].last_accessed, 300);
-    assert_eq!(sessions[1].name, "newer-attached");
+    assert_eq!(sessions[1].name, "newer-accessed");
     assert_eq!(sessions[1].last_accessed, 200);
-    assert_eq!(sessions[2].name, "older-attached");
+    assert_eq!(sessions[2].name, "older-accessed");
     assert_eq!(sessions[2].last_accessed, 100);
     assert_eq!(sessions[2].windows.len(), 2);
     assert_eq!(sessions[2].windows[0].name, "shell");

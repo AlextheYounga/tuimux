@@ -1,7 +1,10 @@
 use std::env;
 use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
+
+use super::LAST_ACCESSED_OPTION;
 
 /// Checks if a tmux session exists.
 ///
@@ -33,8 +36,14 @@ pub fn session_exists(session_name: &str) -> Result<bool> {
 pub fn attach_to_session(session_name: &str) -> Result<()> {
     let is_attached = env::var("TMUX").is_ok();
     let attach_cmd = if is_attached { "switch-client" } else { "attach-session" };
+    let mut command = Command::new("tmux");
+    command.arg(attach_cmd).args(["-t", session_name]);
+    append_record_access_command(&mut command, session_name)?;
 
-    Command::new("tmux").arg(attach_cmd).args(["-t", session_name]).status().context("Failed to attach session")?;
+    let status = command.status().context("Failed to attach session")?;
+    if !status.success() {
+        anyhow::bail!("tmux failed to attach session {session_name}");
+    }
 
     Ok(())
 }
@@ -46,24 +55,32 @@ pub fn attach_to_session(session_name: &str) -> Result<()> {
 pub fn attach_to_window(session_name: &str, window_index: &str) -> Result<()> {
     let window_target = format!("{session_name}:{window_index}");
     let is_attached = env::var("TMUX").is_ok();
+    let mut command = Command::new("tmux");
 
-    let status = if is_attached {
-        Command::new("tmux")
-            .args(["switch-client", "-t", session_name])
-            .args([";", "select-window", "-t", &window_target])
-            .status()
-            .context("Failed to switch to target window")?
+    if is_attached {
+        command.args(["switch-client", "-t", session_name]);
     } else {
-        Command::new("tmux")
-            .args(["attach-session", "-t", session_name])
-            .args([";", "select-window", "-t", &window_target])
-            .status()
-            .context("Failed to attach to target window")?
-    };
+        command.args(["attach-session", "-t", session_name]);
+    }
+    command.args([";", "select-window", "-t", &window_target]);
+    append_record_access_command(&mut command, session_name)?;
+
+    let status = command.status().context("Failed to attach to target window")?;
 
     if !status.success() {
         anyhow::bail!("tmux failed to attach/select window {window_target}");
     }
+
+    Ok(())
+}
+
+fn append_record_access_command(command: &mut Command, session_name: &str) -> Result<()> {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .context("System time is before the Unix epoch")?
+        .as_secs()
+        .to_string();
+    command.args([";", "set-option", "-t", session_name, LAST_ACCESSED_OPTION, &timestamp]);
 
     Ok(())
 }

@@ -74,7 +74,7 @@ pub fn fetch_all_sessions() -> Result<Vec<Session>> {
             "list-windows",
             "-a",
             "-F",
-            "#{session_name}\\037#{session_path}\\037#{session_last_attached}\\037#{session_created}\\037#{window_index}\\037#{window_name}\\037#{window_layout}\\037#{pane_current_path}\\037#{window_activity}",
+            "#{session_name}\\037#{session_path}\\037#{@tuimux_last_accessed}\\037#{session_created}\\037#{window_index}\\037#{window_name}\\037#{window_layout}\\037#{pane_current_path}\\037#{window_activity}",
         ])
         .output()
         .context("Failed to execute 'tmux list-windows -a'")?;
@@ -99,7 +99,7 @@ pub fn fetch_all_sessions() -> Result<Vec<Session>> {
         if let (
             Some(s_name),
             Some(s_path),
-            Some(s_last_attached),
+            Some(s_last_accessed),
             Some(s_created),
             Some(w_idx),
             Some(w_name),
@@ -118,9 +118,8 @@ pub fn fetch_all_sessions() -> Result<Vec<Session>> {
             parts.next(),
         ) {
             let s_name = s_name.to_string();
-            let s_last_attached: u64 = s_last_attached.parse().unwrap_or(0);
             let s_created: u64 = s_created.parse().unwrap_or(0);
-            let last_accessed = s_last_attached.max(s_created);
+            let last_accessed = s_last_accessed.parse().unwrap_or(s_created);
             let w_activity: u64 = w_activity.parse().unwrap_or(0);
             let window = Window {
                 index: w_idx.to_string(),
@@ -217,16 +216,16 @@ fn get_session_last_accessed(session_name: &str) -> Result<u64> {
         .arg("display-message")
         .arg("-p")
         .args(["-t", session_name])
-        .args(["-F", "#{session_last_attached}\\037#{session_created}"])
+        .args(["-F", "#{@tuimux_last_accessed}\\037#{session_created}"])
         .output()
         .context("Failed to execute 'tmux display-message'")?;
 
     let string_output = String::from_utf8(output.stdout).context("Failed to convert tmux output to UTF-8 string")?;
     let mut timestamps = string_output.trim().splitn(2, TMUX_FIELD_SEPARATOR);
-    let last_attached = timestamps.next().and_then(|value| value.parse().ok()).unwrap_or(0);
+    let last_accessed = timestamps.next().and_then(|value| value.parse().ok());
     let created = timestamps.next().and_then(|value| value.parse().ok()).unwrap_or(0);
 
-    Ok(last_attached.max(created))
+    Ok(last_accessed.unwrap_or(created))
 }
 
 fn get_windows(session_name: &str) -> Result<Vec<Window>> {
